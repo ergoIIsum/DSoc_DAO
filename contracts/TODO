@@ -1,0 +1,17 @@
+Cosas para hacer en el Simple_Ballot:
+
+Emitir eventos
+
+Definir periodos de tiempo para cada propuesta
+
+Integrar NFTs
+
+Trabajar en el Consejo (NFTs)
+ - El Consejo puede aprobar o rechazar una propuesta
+    si hay una mayoría 
+
+Integrar AccessControl
+https://github.com/OpenZeppelin/openzeppelin-contracts/tree/master/contracts/access
+
+
+Tokens?
