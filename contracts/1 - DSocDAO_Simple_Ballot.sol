@@ -1,6 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0
-// Based on the code found in 
-// https://docs.soliditylang.org/en/v0.8.16/solidity-by-example.html
+/** Based on the code found in 
+ * https://docs.soliditylang.org/en/v0.8.16/solidity-by-example.html
+ * 
+ * And OpenZeppelin code found in
+ *
+ * https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/
+ * Checked on 09/2022
+ *
+ */
 
 pragma solidity >=0.7.0 <0.9.0;
 
@@ -9,6 +16,7 @@ pragma solidity >=0.7.0 <0.9.0;
  * @dev Implements a simple voting process along with vote delegation
  */
 contract Ballot {
+    using Timers for Timers.BlockNumber;
 
     struct Voter {
         uint weight; // weight is accumulated by delegation
@@ -18,8 +26,6 @@ contract Ballot {
     }
 
     struct Proposal {
-        // If you can limit the length to a certain number of bytes, 
-        // always use one of bytes1 to bytes32 because they are much cheaper
         string name;   // short name (up to 32 bytes)
         uint voteCount; // number of accumulated votes
     }
