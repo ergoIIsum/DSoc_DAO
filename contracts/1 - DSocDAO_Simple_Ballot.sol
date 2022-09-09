@@ -11,6 +11,9 @@
 
 pragma solidity >=0.7.0 <0.9.0;
 
+import "./tools/Timers.sol";
+import "./tools/DoubleEndedQueue.sol";
+
 /** 
  * @title DSocDAO Simple Voting Ballot
  * @dev Implements a simple voting process along with vote delegation
@@ -38,10 +41,6 @@ contract Ballot {
 
     Proposal[] public proposals;
 
-    /** 
-     * @dev Create a new ballot to choose one of 'proposalNames'.
-     * @param proposalNames names of proposals
-     */
     constructor() {
 
     }
