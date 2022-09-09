@@ -1,2 +1,4 @@
 # ignore artifacts folder
 /contracts/artifacts/
+/contracts/tools/artifacts/
+/contracts/tools/deps/artifacts/

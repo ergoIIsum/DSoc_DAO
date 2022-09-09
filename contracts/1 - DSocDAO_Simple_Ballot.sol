@@ -12,7 +12,6 @@
 pragma solidity >=0.7.0 <0.9.0;
 
 import "./tools/Timers.sol";
-import "./tools/DoubleEndedQueue.sol";
 
 /** 
  * @title DSocDAO Simple Voting Ballot
@@ -29,6 +28,9 @@ contract Ballot {
     }
 
     struct Proposal {
+        // When the voting starts/ends
+        Timers.BlockNumber voteStart;
+        Timers.BlockNumber voteEnd;
         string name;   // short name (up to 32 bytes)
         uint voteCount; // number of accumulated votes
     }
@@ -42,7 +44,6 @@ contract Ballot {
     Proposal[] public proposals;
 
     constructor() {
-
     }
 
     /** 
