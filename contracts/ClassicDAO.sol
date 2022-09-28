@@ -23,7 +23,7 @@ contract ClassicDAO {
     mapping(address => mapping (address => uint256)) public allowance;
     
     constructor(uint256 _TokenCap, string memory _name, string memory _symbol){
-    TokenCap = _TokenCap;
+    TokenCap = _TokenCap; // 10000000000000000000
     totalSupply = 0;
     name = _name;
     symbol = _symbol;
