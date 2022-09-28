@@ -1,7 +1,15 @@
 //SPDX-License-Identifier:UNLICENSE
 pragma solidity ^0.8.7;
 
-contract Multi_Signature_Treasury{
+/*
+ *
+ * @dev based on TreasuryMultisig.sol on
+ * Soteria-Smart-Contracts/ClassicDAO Github
+ * revision 6d95f5a  
+ *
+*/
+
+contract CLDTreasury{
     //Addresses
     address public SignerOne;
     address public SignerTwo;

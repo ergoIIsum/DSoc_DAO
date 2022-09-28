@@ -3,14 +3,18 @@ pragma solidity ^0.8.4;
 
 // These are some useful tools for ease of use
 import "./libraries.sol";
-
 // The CLD token ABI
 import "./ClassicDAO.sol";
+// [WIP] Treasury module
+// import "./CLDTreasury";
 
 /** 
  * @title ClassicDAO Voting system
  * @dev Implements a simple voting process where 
  * users lock their tokens in order to vote
+ * 
+ * Incentives are given to winning proposal 
+ * voters and deduced from the locked voting power
  */
 contract VotingSystem {
     // Useful goodies
