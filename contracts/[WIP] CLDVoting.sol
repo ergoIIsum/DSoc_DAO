@@ -34,6 +34,7 @@ contract VotingSystem {
         uint voteCount;
         uint approvingVotes;
         uint refusingVotes;
+        uint incentiveAmount;
     }
 
     struct VoterInfo {
@@ -79,7 +80,8 @@ contract VotingSystem {
                 executed: false,
                 voteCount: 0,
                 approvingVotes: 0,
-                refusingVotes: 0
+                refusingVotes: 0,
+                incentiveAmount: 0
             })
         );
     }
@@ -95,6 +97,7 @@ contract VotingSystem {
         bool,
         uint,
         uint,
+        uint,
         uint
     ) {
         ProposalCore memory _proposal = proposal[proposalId];
@@ -107,8 +110,14 @@ contract VotingSystem {
             _proposal.executed,
             _proposal.voteCount,
             _proposal.approvingVotes,
-            _proposal.refusingVotes
+            _proposal.refusingVotes,
+            _proposal.incentiveAmount
             );
+    }
+
+    // WIP
+    function incentivizeProposal(uint amount) public pure returns(uint) {
+        return amount;
     }
 
     function castVote(
@@ -159,7 +168,7 @@ contract VotingSystem {
     */
 
     // Proposal execution code
-    // Do it in a different contract?
+    // Placeholder
 
     function executeProposal(
         uint proposalId
@@ -185,6 +194,30 @@ contract VotingSystem {
             return true;
     }
 
+    function _returnTokens(
+        uint _proposalId,
+        address _voterAddr,
+        bool _hasIncentive
+        )
+        internal returns(bool) {
+        VoterInfo storage _voter = voterInfo[_proposalId][_voterAddr];
+        require(_voter.voted, "You need to lock votes in order to take them out");
+
+
+        if(_hasIncentive) {
+            // Check the msg.sender has voted
+
+            uint _amount = _voter.votesLocked;
+        
+            cld.transfer(msg.sender, _amount);
+        
+            _voter.votesLocked -= _amount;
+        } else {
+            //placeholder
+            return _hasIncentive;
+        }
+    }
+
     // Debug tools
 
     function viewVoterInfo(address voter, uint proposalId) external view returns(
@@ -203,25 +236,8 @@ contract VotingSystem {
             );
     }
 
-    function returnTokens(
-        uint proposalId,
-        address voter
-        //, string memory option
-        )
-         external {
-        VoterInfo storage _voter = voterInfo[proposalId][voter];
-
-        // Check the msg.sender has voted
-        require(_voter.voted, "You need to lock votes in order to take them out");
-        // bytes32 _optionHash = keccak256(abi.encodePacked(option));
-        // require(_optionHash == approvalHash || _optionHash == refusalHash, "You must either 'approve' or 'refuse'");
-
-        uint _amount = _voter.votesLocked;
-        
-        cld.transfer(msg.sender, _amount);
-        
-        _voter.votesLocked -= _amount;
-
+    function takeMyTokensOut(uint proposalId) external {
+        _returnTokens(proposalId,msg.sender, false);
     }
 
     function checkBlock() public view returns (uint){
