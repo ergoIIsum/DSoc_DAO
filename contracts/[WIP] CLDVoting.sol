@@ -139,8 +139,10 @@ contract VotingSystem {
         _proposal.voteCount += amount;
         if(_optionHash == approvalHash) {
             _proposal.approvingVotes += amount;
+            _voter.approvingVotes += amount;
         } else {
             _proposal.refusingVotes += amount;
+            _voter.refusingVotes += amount;
         }
         _voter.votesLocked += amount;
         _voter.voted = true;
@@ -166,7 +168,7 @@ contract VotingSystem {
             ProposalCore storage _proposal = proposal[proposalId];
 
             require(!_proposal.executed, 'Proposal already executed!');
-            require(block.number > _proposal.voteEnd, "Voting is not over!");
+            require(block.number < _proposal.voteEnd, "Voting is not over!");
 
             _proposal.executed = true;
     }
@@ -214,7 +216,7 @@ contract VotingSystem {
         if(_voter.refusingVotes > 0) {
             _proposal.refusingVotes -= _amount;
         }
-        _proposal.voteCount -= _amount;
+        // _proposal.voteCount -= _amount;
         _voter.votesLocked = 0;
 
     }
