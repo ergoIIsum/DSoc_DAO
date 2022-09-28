@@ -31,6 +31,7 @@ contract VotingSystem {
         uint voteTime;
         uint voteEnd;
         bool executed;
+        uint activeVoters;
         uint voteCount;
         uint approvingVotes;
         uint refusingVotes;
@@ -42,6 +43,7 @@ contract VotingSystem {
         uint approvingVotes;
         uint refusingVotes;  
         bool voted;
+        bool isExecutioner;
     }
 
     // Proposals being tracked by id here
@@ -56,6 +58,14 @@ contract VotingSystem {
     // Hashes for voting options
     bytes32 internal constant approvalHash = keccak256("approve");
     bytes32 internal constant refusalHash = keccak256("refuse");
+
+    // Proposal executioner's bonus, proposal incentive burn percentage 
+    // TO DO can be set by the DAO
+    uint public execusCut;
+    uint public burnCut;
+
+    // Events
+    // TO DO
 
     constructor(ClassicDAO cldAddr) {
         cld = cldAddr;
@@ -78,6 +88,7 @@ contract VotingSystem {
                 voteTime: time,
                 voteEnd: endsIn,
                 executed: false,
+                activeVoters: 0,
                 voteCount: 0,
                 approvingVotes: 0,
                 refusingVotes: 0,
@@ -98,6 +109,7 @@ contract VotingSystem {
         uint,
         uint,
         uint,
+        uint,
         uint
     ) {
         ProposalCore memory _proposal = proposal[proposalId];
@@ -108,6 +120,7 @@ contract VotingSystem {
             _proposal.voteTime,
             _proposal.voteEnd,
             _proposal.executed,
+            _proposal.activeVoters,
             _proposal.voteCount,
             _proposal.approvingVotes,
             _proposal.refusingVotes,
@@ -116,8 +129,15 @@ contract VotingSystem {
     }
 
     // WIP
-    function incentivizeProposal(uint amount) public pure returns(uint) {
-        return amount;
+    function incentivizeProposal(uint proposalId, uint amount) public {
+        require(cld.balanceOf(msg.sender) >= amount, "You do not have enough CLD to stake this amount");
+        require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
+        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
+        
+        ProposalCore storage _proposal = proposal[proposalId];
+        cld.transferFrom(msg.sender, address(this), amount);
+
+        _proposal.incentiveAmount += amount;
     }
 
     function castVote(
@@ -129,18 +149,13 @@ contract VotingSystem {
         require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
 
         bytes32 _optionHash = keccak256(abi.encodePacked(option));
-
         require(_optionHash == approvalHash || _optionHash == refusalHash, "You must either 'approve' or 'refuse'");
-
+        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
 
         ProposalCore storage _proposal = proposal[proposalId];
         VoterInfo storage _voter = voterInfo[proposalId][msg.sender];
 
-        // Check the proposal exists
-        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
-        // Check the msg.sender has not voted in this proposal
         require(!_voter.voted, "You already voted in this proposal");
-        // Check the vote period has not ended
         require(block.number < _proposal.voteEnd, "The voting period has ended");
 
         cld.transferFrom(msg.sender, address(this), amount);
@@ -155,7 +170,7 @@ contract VotingSystem {
         }
         _voter.votesLocked += amount;
         _voter.voted = true;
-       // _voter.optionVoted = _optionHash;
+        _proposal.activeVoters += 1;
     }
 
     /*
@@ -174,17 +189,26 @@ contract VotingSystem {
         uint proposalId
         // bytes[] memory calldatas
         ) external { 
-            ProposalCore storage _proposal = proposal[proposalId];
+        address _executioner = msg.sender;
+        ProposalCore storage _proposal = proposal[proposalId];
+        VoterInfo storage executioner = voterInfo[proposalId][_executioner];
 
-            require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
-            require(!_proposal.executed, 'Proposal already executed!');
-            require(_proposal.voteEnd <= block.number, "Voting has not ended");
+        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
+        require(!_proposal.executed, 'Proposal already executed!');
+        require(_proposal.voteEnd <= block.number, "Voting has not ended");
 
-            _proposal.executed = true;
+        /* Placeholder / TO DO
+         * Return the tokens of each voter
+         * 
+         _returnTokens(_voter, proposalId);
+        */
+        executioner.isExecutioner = true;
+        _proposal.executed = true;
     }
-
-    // Internal functions
-
+    
+    /////////////////////////////////////////
+    /////        Internal functions     /////
+    /////////////////////////////////////////
     function _doesProposalExists(uint _proposalId) internal view returns(bool)
     {
         ProposalCore storage _proposal = proposal[_proposalId];
@@ -196,29 +220,52 @@ contract VotingSystem {
 
     function _returnTokens(
         uint _proposalId,
-        address _voterAddr,
-        bool _hasIncentive
+        address _voterAddr
         )
         internal returns(bool) {
+        ProposalCore storage _proposal = proposal[_proposalId];
         VoterInfo storage _voter = voterInfo[_proposalId][_voterAddr];
+        
+        // Check the msg.sender has voted
         require(_voter.voted, "You need to lock votes in order to take them out");
 
+        uint _amount = _voter.votesLocked;
 
-        if(_hasIncentive) {
-            // Check the msg.sender has voted
+        if(_proposal.incentiveAmount > 0) {
+            // Fun math to get the incentive pool share
+            // for each individual voter
+            // Get all this into a function TO DO
+            uint baseTokenAmount = _proposal.incentiveAmount;
+            uint totalVoters = _proposal.activeVoters;
 
-            uint _amount = _voter.votesLocked;
-        
-            cld.transfer(msg.sender, _amount);
-        
+            // Take out the executioner's cut and the burn amount
+            uint execusCutAmount = baseTokenAmount * execusCut / 100;
+            uint burnCutAmount = baseTokenAmount * burnCut / 100;
+
+            // Actual total and the individual share each voter receives
+            uint totalTokenAmount = baseTokenAmount - burnCutAmount - execusCutAmount;
+            uint indTotalTokenAmount = totalTokenAmount / totalVoters;
+
+            if(_voter.isExecutioner) {
+                cld.transfer(_voterAddr, _amount+indTotalTokenAmount);
+            } else {
+                cld.transfer(_voterAddr, _amount+indTotalTokenAmount);
+            }
+
+            cld.Burn(burnCutAmount);
+
+            _proposal.incentiveAmount = 0;
             _voter.votesLocked -= _amount;
         } else {
-            //placeholder
-            return _hasIncentive;
+            // placeholder
+            // TO DO
+            return false;
         }
     }
 
-    // Debug tools
+    /////////////////////////////////////////
+    /////          Debug Tools          /////
+    /////////////////////////////////////////
 
     function viewVoterInfo(address voter, uint proposalId) external view returns(
         uint,
@@ -237,7 +284,7 @@ contract VotingSystem {
     }
 
     function takeMyTokensOut(uint proposalId) external {
-        _returnTokens(proposalId,msg.sender, false);
+        _returnTokens(proposalId,msg.sender);
     }
 
     function checkBlock() public view returns (uint){
