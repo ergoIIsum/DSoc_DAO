@@ -63,12 +63,19 @@ contract VotingSystem {
     // TO DO can be set by the DAO
     uint public execusCut;
     uint public burnCut;
+    address public operator;
 
     // Events
     // TO DO
 
-    constructor(ClassicDAO cldAddr) {
+    constructor(ClassicDAO cldAddr, 
+        address _opAddr, 
+        uint _burnCut,
+        uint _execusCut) {
         cld = cldAddr;
+        operator = _opAddr;
+        burnCut = _burnCut;
+        execusCut = _execusCut;
     }
 
     function createProposal(string memory name, uint time) external {
@@ -204,6 +211,24 @@ contract VotingSystem {
         */
         executioner.isExecutioner = true;
         _proposal.executed = true;
+    }
+
+    function setBurnAmount(uint amount) external {
+        require(msg.sender == operator);
+        require(amount < 100);
+        burnCut = amount;
+    }
+
+    function setExecCut(uint amount) external {
+        require(msg.sender == operator);
+        require(amount < 100);
+        execusCut = amount;
+    }
+
+    function setOperator(address newAddr) external {
+        require(msg.sender == operator);
+        require(operator != newAddr);
+        operator = newAddr;
     }
     
     /////////////////////////////////////////
