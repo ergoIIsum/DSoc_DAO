@@ -140,6 +140,8 @@ contract VotingSystem {
         require(cld.balanceOf(msg.sender) >= amount, "You do not have enough CLD to stake this amount");
         require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
+        require(block.number < _proposal.voteEnd, "The voting period has ended, save for the next proposal!");
+
         
         ProposalCore storage _proposal = proposal[proposalId];
         cld.transferFrom(msg.sender, address(this), amount);
