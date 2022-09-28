@@ -46,6 +46,7 @@ contract VotingSystem {
 
     // Proposals being tracked by id here
     ProposalCore[] public proposal;
+
     // Map user addresses over their info
     mapping (uint256 => mapping (address => VoterInfo)) internal voterInfo;
  
@@ -116,6 +117,7 @@ contract VotingSystem {
         uint proposalId, 
         string memory option
         ) external { 
+        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
         require(cld.balanceOf(msg.sender) >= amount, "You do not have enough CLD to stake this amount");
         require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
 
@@ -128,9 +130,9 @@ contract VotingSystem {
         VoterInfo storage _voter = voterInfo[proposalId][msg.sender];
 
         // Check the proposal exists
-        require(_proposal.voteEnd != 0, "This proposal doesn't exist");
+        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
         // Check the msg.sender has not voted in this proposal
-        require(!_voter.voted, "You need to lock votes in order to take them out");
+        require(!_voter.voted, "You already voted in this proposal");
         // Check the vote period has not ended
         require(block.number < _proposal.voteEnd, "The voting period has ended");
 
@@ -167,10 +169,22 @@ contract VotingSystem {
         ) external { 
             ProposalCore storage _proposal = proposal[proposalId];
 
+            require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
             require(!_proposal.executed, 'Proposal already executed!');
-            require(block.number < _proposal.voteEnd, "Voting is not over!");
+            require(_proposal.voteEnd <= block.number, "Voting has not ended");
 
             _proposal.executed = true;
+    }
+
+    // Internal functions
+
+    function _doesProposalExists(uint _proposalId) internal view returns(bool)
+    {
+        ProposalCore storage _proposal = proposal[_proposalId];
+
+        // Simple: Does proposal exists (has a name)? Is executed? Is voting ongoing?
+        require(keccak256(abi.encodePacked(_proposal.proposalName)) != 0);
+            return true;
     }
 
     // Debug tools
@@ -194,12 +208,13 @@ contract VotingSystem {
     }
 
     function returnTokens(
-        uint proposalId
+        uint proposalId,
+        address voter
         //, string memory option
         )
          external {
         ProposalCore storage _proposal = proposal[proposalId];
-        VoterInfo storage _voter = voterInfo[proposalId][msg.sender];
+        VoterInfo storage _voter = voterInfo[proposalId][voter];
 
         // Check the msg.sender has voted
         require(_voter.voted, "You need to lock votes in order to take them out");
@@ -217,7 +232,7 @@ contract VotingSystem {
             _proposal.refusingVotes -= _amount;
         }
         // _proposal.voteCount -= _amount;
-        _voter.votesLocked = 0;
+        _voter.votesLocked -= _amount;
 
     }
 
