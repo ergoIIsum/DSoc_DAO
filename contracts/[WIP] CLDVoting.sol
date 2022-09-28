@@ -38,7 +38,6 @@ contract VotingSystem {
 
     struct VoterInfo {
         uint votesLocked;
-        bytes32 optionVoted;
         uint approvingVotes;
         uint refusingVotes;  
         bool voted;
@@ -117,7 +116,6 @@ contract VotingSystem {
         uint proposalId, 
         string memory option
         ) external { 
-        require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
         require(cld.balanceOf(msg.sender) >= amount, "You do not have enough CLD to stake this amount");
         require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
 
@@ -191,7 +189,6 @@ contract VotingSystem {
 
     function viewVoterInfo(address voter, uint proposalId) external view returns(
         uint,
-        bytes32,
         uint,
         uint,  
         bool 
@@ -200,7 +197,6 @@ contract VotingSystem {
 
         return(
             _voter.votesLocked,
-            _voter.optionVoted,
             _voter.approvingVotes,
             _voter.refusingVotes,
             _voter.voted
@@ -213,25 +209,17 @@ contract VotingSystem {
         //, string memory option
         )
          external {
-        ProposalCore storage _proposal = proposal[proposalId];
         VoterInfo storage _voter = voterInfo[proposalId][voter];
 
         // Check the msg.sender has voted
         require(_voter.voted, "You need to lock votes in order to take them out");
         // bytes32 _optionHash = keccak256(abi.encodePacked(option));
-        //require(_optionHash == approvalHash || _optionHash == refusalHash, "You must either 'approve' or 'refuse'");
+        // require(_optionHash == approvalHash || _optionHash == refusalHash, "You must either 'approve' or 'refuse'");
 
         uint _amount = _voter.votesLocked;
         
-        cld.transferFrom(address(this), msg.sender, _amount);
+        cld.transfer(msg.sender, _amount);
         
-        if(_voter.approvingVotes > 0) {
-            _proposal.approvingVotes -= _amount;
-        }
-        if(_voter.refusingVotes > 0) {
-            _proposal.refusingVotes -= _amount;
-        }
-        // _proposal.voteCount -= _amount;
         _voter.votesLocked -= _amount;
 
     }
