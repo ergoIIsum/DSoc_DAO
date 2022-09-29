@@ -168,6 +168,9 @@ contract VotingSystem {
         _updateAmountToBurn(proposalId);
         _updateAmountToExecutioner(proposalId);
         _updateIndIncetiveShare(proposalId);
+
+        // TO DO
+        // emit event
     }
 
     function castVote(
@@ -219,7 +222,7 @@ contract VotingSystem {
     */
 
     // Proposal execution code
-    // Placeholder
+    // Placeholder TO DO
 
     function executeProposal(
         uint proposalId
@@ -300,15 +303,15 @@ contract VotingSystem {
                 uint _specialExecutShare = _proposal.incentiveShare + _proposal.amountToExecutioner;
                 uint _totalAmount = _amount + _specialExecutShare;
                 cld.transfer(_voterAddr, _totalAmount);
-                _proposal.incentiveAmount -= _totalAmount;
+                _proposal.incentiveAmount -= _specialExecutShare;
             } else {
                 uint _totalAmount = _amount + _proposal.incentiveShare;
                 cld.transfer(_voterAddr, _totalAmount);
-                _proposal.incentiveAmount -= _totalAmount;  
+                _proposal.incentiveAmount -= _proposal.incentiveShare;  
             }
             _voter.votesLocked -= _amount;
 
-          _burnIncentiveShare(_proposalId);
+            _burnIncentiveShare(_proposalId);
         } else {
             cld.transfer(_voterAddr, _amount);
             _voter.votesLocked -= _amount;
@@ -351,10 +354,9 @@ contract VotingSystem {
 
         uint baseTokenAmount = _proposal.incentiveAmount;
         uint totalVoters = _proposal.activeVoters;
-        uint incentiveTaxes = _proposal.amountToBurn;
+        uint incentiveTaxes = _proposal.amountToBurn + _proposal.amountToExecutioner;
         uint newIndividualIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
         _proposal.incentiveShare = newIndividualIncetive;
-     
     }   
 
     /////////////////////////////////////////
