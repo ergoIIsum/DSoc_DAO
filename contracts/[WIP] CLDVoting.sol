@@ -142,12 +142,18 @@ contract VotingSystem {
 
     // WIP
     function incentivizeProposal(uint proposalId, uint amount) public {
-        require(cld.balanceOf(msg.sender) >= amount, "You do not have enough CLD to stake this amount");
-        require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
+        require(cld.balanceOf(msg.sender) >= amount, 
+        "You do not have enough CLD to stake this amount"
+        );
+        require(cld.allowance(msg.sender, address(this)) >= amount, 
+        "You have not given the staking contract enough allowance"
+        );
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
         
         ProposalCore storage _proposal = proposal[proposalId];
-        require(block.number < _proposal.voteEnd, "The voting period has ended, save for the next proposal!");
+        require(block.number < _proposal.voteEnd, 
+        "The voting period has ended, save for the next proposal!"
+        );
 
         cld.transferFrom(msg.sender, address(this), amount);
 
@@ -159,11 +165,17 @@ contract VotingSystem {
         uint proposalId, 
         string memory option
         ) external { 
-        require(cld.balanceOf(msg.sender) >= amount, "You do not have enough CLD to stake this amount");
-        require(cld.allowance(msg.sender, address(this)) >= amount, "You have not given the staking contract enough allowance");
+        require(cld.balanceOf(msg.sender) >= amount, 
+        "You do not have enough CLD to stake this amount"
+        );
+        require(cld.allowance(msg.sender, address(this)) >= amount, 
+        "You have not given the staking contract enough allowance"
+        );
 
         bytes32 _optionHash = keccak256(abi.encodePacked(option));
-        require(_optionHash == approvalHash || _optionHash == refusalHash, "You must either 'approve' or 'refuse'");
+        require(_optionHash == approvalHash || _optionHash == refusalHash, 
+        "You must either 'approve' or 'refuse'"
+        );
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
 
         ProposalCore storage _proposal = proposal[proposalId];
@@ -254,12 +266,12 @@ contract VotingSystem {
         address _voterAddr,
         bool _isItForProposals
         )
-        internal returns(bool) {
+        internal {
         ProposalCore storage _proposal = proposal[_proposalId];
         VoterInfo storage _voter = voterInfo[_proposalId][_voterAddr];
         
         // Check the msg.sender has voted
-        require(_voter.voted, "You need to lock votes in order to take them out");
+        require(_voter.votesLocked > 0, "You need to lock votes in order to take them out");
 
         uint _amount = _voter.votesLocked;
 
@@ -278,19 +290,19 @@ contract VotingSystem {
 
         if(_isItForProposals) {
             if(_voter.isExecutioner) {
-                cld.transfer(_voterAddr, _amount+indTotalTokenAmount+execusCutAmount);
+                cld.transfer(_voterAddr, _amount + indTotalTokenAmount + execusCutAmount);
+                _proposal.incentiveAmount -= indTotalTokenAmount + execusCutAmount;
             } else {
-                cld.transfer(_voterAddr, _amount+indTotalTokenAmount);
+                cld.transfer(_voterAddr, _amount + indTotalTokenAmount);
+                _proposal.incentiveAmount -= indTotalTokenAmount;  
             }
+            _voter.votesLocked -= _amount;
 
             cld.Burn(burnCutAmount);
 
-            _proposal.incentiveAmount = 0;
-            _voter.votesLocked -= _amount;
         } else {
-            // placeholder
-            // TO DO
-            return false;
+            cld.transfer(_voterAddr, _amount);
+            _voter.votesLocked -= _amount;
         }
     }
 
