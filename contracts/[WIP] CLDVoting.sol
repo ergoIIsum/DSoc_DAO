@@ -332,6 +332,7 @@ contract VotingSystem {
 
     function _updateIndIncetiveShare(uint _proposalId) internal {
         ProposalCore storage _proposal = proposal[_proposalId];
+        // TO DO Fix this, this needs to be a global number
         VoterInfo storage _voter = voterInfo[_proposalId][msg.sender];
 
         uint baseTokenAmount = _proposal.incentiveAmount;
