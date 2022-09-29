@@ -132,8 +132,7 @@ contract VotingSystem {
         uint,
         uint
     ) {
-        ProposalCore memory _proposal = proposal[proposalId];
-           
+        ProposalCore memory _proposal = proposal[proposalId];      
         return (
             _proposal.proposalName,
             _proposal.voteStart,
@@ -148,7 +147,6 @@ contract VotingSystem {
             );
     }
 
-    // WIP
     function incentivizeProposal(uint proposalId, uint amount) public {
         require(cld.balanceOf(msg.sender) >= amount, 
         "You do not have enough CLD to stake this amount"
@@ -228,20 +226,17 @@ contract VotingSystem {
         uint proposalId
         // bytes[] memory calldatas // TO DO
         ) external { 
-        ProposalCore storage _proposal = proposal[proposalId];
-        VoterInfo storage executioner = voterInfo[proposalId][msg.sender];
-        executioner.isExecutioner = true;
+        voterInfo[proposalId][msg.sender].isExecutioner = true;
 
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
-        require(!_proposal.executed, 'Proposal already executed!');
-        require(_proposal.voteEnd <= block.number, "Voting has not ended");
+        require(!proposal[proposalId].executed, 'Proposal already executed!');
+        require(proposal[proposalId].voteEnd <= block.number, "Voting has not ended");
 
-        /* Placeholder // TO DO
-         * Return the tokens of each voter
-         * 
-         _returnTokens(_voter, proposalId);
-        */
-        _proposal.executed = true;
+        proposal[proposalId].executed = true;
+    }
+
+    function withdrawIncentive(uint proposalId, address voter) external {
+        _returnTokens(proposalId, voter, true);
     }
 
     function setBurnAmount(uint amount) external {
@@ -267,10 +262,8 @@ contract VotingSystem {
     /////////////////////////////////////////
     function _doesProposalExists(uint _proposalId) internal view returns(bool)
     {
-        ProposalCore storage _proposal = proposal[_proposalId];
-
         // Simple: Does proposal exists (has a name)? Is executed? Is voting ongoing?
-        require(keccak256(abi.encodePacked(_proposal.proposalName)) != 0);
+        require(keccak256(abi.encodePacked(proposal[_proposalId].proposalName)) != 0);
             return true;
     }
 
@@ -290,31 +283,29 @@ contract VotingSystem {
         bool _isItForProposals
         )
         internal {
-        ProposalCore storage _proposal = proposal[_proposalId];
-        VoterInfo storage _voter = voterInfo[_proposalId][_voterAddr];
         
         // Check the msg.sender has voted
-        require(_voter.votesLocked > 0, "You need to lock votes in order to take them out");
+        require(voterInfo[_proposalId][_voterAddr].votesLocked > 0, "You need to lock votes in order to take them out");
 
-        uint _amount = _voter.votesLocked;
+        uint _amount = voterInfo[_proposalId][_voterAddr].votesLocked;
 
         if(_isItForProposals) {
-            if(_voter.isExecutioner) {
-                uint _specialExecutShare = _proposal.incentiveShare + _proposal.amountToExecutioner;
+            if(voterInfo[_proposalId][_voterAddr].isExecutioner) {
+                uint _specialExecutShare = proposal[_proposalId].incentiveShare + proposal[_proposalId].amountToExecutioner;
                 uint _totalAmount = _amount + _specialExecutShare;
                 cld.transfer(_voterAddr, _totalAmount);
-                _proposal.incentiveAmount -= _specialExecutShare;
+                proposal[_proposalId].incentiveAmount -= _specialExecutShare;
             } else {
-                uint _totalAmount = _amount + _proposal.incentiveShare;
+                uint _totalAmount = _amount + proposal[_proposalId].incentiveShare;
                 cld.transfer(_voterAddr, _totalAmount);
-                _proposal.incentiveAmount -= _proposal.incentiveShare;  
+                proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare;  
             }
-            _voter.votesLocked -= _amount;
+            voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
 
             _burnIncentiveShare(_proposalId);
         } else {
             cld.transfer(_voterAddr, _amount);
-            _voter.votesLocked -= _amount;
+            voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         }
 
         // TO DO
@@ -322,41 +313,32 @@ contract VotingSystem {
     }
 
     function _burnIncentiveShare(uint _proposalId) internal {
-        ProposalCore storage _proposal = proposal[_proposalId];
-
-        uint amount = _proposal.amountToBurn;
+        uint amount = proposal[_proposalId].amountToBurn;
         cld.Burn(amount);
-        _proposal.amountToBurn -= amount;
+        proposal[_proposalId].amountToBurn -= amount;
 
         // TO DO
         // emit burn event
-
     }
 
     function _updateAmountToBurn(uint _proposalId) internal {
-        ProposalCore storage _proposal = proposal[_proposalId];
-
-        uint baseTokenAmount = _proposal.incentiveAmount;
+        uint baseTokenAmount = proposal[_proposalId].incentiveAmount;
         uint newBurnAmount = baseTokenAmount * burnCut / 100;
-        _proposal.amountToBurn = newBurnAmount;
+        proposal[_proposalId].amountToBurn = newBurnAmount;
     }
     
     function _updateAmountToExecutioner(uint _proposalId) internal {
-        ProposalCore storage _proposal = proposal[_proposalId];
-
-        uint baseTokenAmount = _proposal.incentiveAmount;
+        uint baseTokenAmount = proposal[_proposalId].incentiveAmount;
         uint newToExecutAmount = baseTokenAmount * execusCut / 100;
-        _proposal.amountToExecutioner = newToExecutAmount;
+        proposal[_proposalId].amountToExecutioner = newToExecutAmount;
     }
         
     function _updateIndIncetiveShare(uint _proposalId) internal {
-        ProposalCore storage _proposal = proposal[_proposalId];
-
-        uint baseTokenAmount = _proposal.incentiveAmount;
-        uint totalVoters = _proposal.activeVoters;
-        uint incentiveTaxes = _proposal.amountToBurn + _proposal.amountToExecutioner;
+        uint baseTokenAmount = proposal[_proposalId].incentiveAmount;
+        uint totalVoters = proposal[_proposalId].activeVoters;
+        uint incentiveTaxes = proposal[_proposalId].amountToBurn + proposal[_proposalId].amountToExecutioner;
         uint newIndividualIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
-        _proposal.incentiveShare = newIndividualIncetive;
+        proposal[_proposalId].incentiveShare = newIndividualIncetive;
     }   
 
     /////////////////////////////////////////
@@ -369,13 +351,11 @@ contract VotingSystem {
         uint,  
         bool 
     ) {
-        VoterInfo storage _voter = voterInfo[proposalId][voter];
-
         return(
-            _voter.votesLocked,
-            _voter.approvingVotes,
-            _voter.refusingVotes,
-            _voter.voted
+            voterInfo[proposalId][voter].votesLocked,
+            voterInfo[proposalId][voter].approvingVotes,
+            voterInfo[proposalId][voter].refusingVotes,
+            voterInfo[proposalId][voter].voted
             );
     }
 
