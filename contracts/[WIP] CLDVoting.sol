@@ -41,12 +41,17 @@ contract VotingSystem {
         uint approvingVotes;
         uint refusingVotes;
         uint incentiveAmount;
+        uint amountToBurn;
+        uint amountToExecutioner;
     }
 
     struct VoterInfo {
         uint votesLocked;
+        uint incentiveShare;
+        // These two below is for debug purposes, take them out is a TO DO
         uint approvingVotes;
         uint refusingVotes;  
+        // These two above is for debug purposes, take them out is a TO DO
         bool voted;
         bool isExecutioner;
     }
@@ -104,7 +109,9 @@ contract VotingSystem {
                 voteCount: 0,
                 approvingVotes: 0,
                 refusingVotes: 0,
-                incentiveAmount: 0
+                incentiveAmount: 0,
+                amountToBurn: 0,
+                amountToExecutioner: 0
             })
         );
     }
@@ -156,8 +163,10 @@ contract VotingSystem {
         );
 
         cld.transferFrom(msg.sender, address(this), amount);
-
         _proposal.incentiveAmount += amount;
+        _updateAmountToBurn(proposalId);
+        _updateAmountToExecutioner(proposalId);
+        _updateIndIncetiveShare(proposalId);
     }
 
     function castVote(
@@ -261,6 +270,14 @@ contract VotingSystem {
             return true;
     }
 
+    function _checkIfHolder() internal view {
+        address _user = msg.sender;
+        uint _userBalance = cld.balanceOf(_user);
+
+        // A member should X amount of CLD
+        require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
+    }
+
     function _returnTokens(
         uint _proposalId,
         address _voterAddr,
@@ -275,29 +292,20 @@ contract VotingSystem {
 
         uint _amount = _voter.votesLocked;
 
-        // Fun math to get the incentive pool share
-        // for each individual voter
-        uint baseTokenAmount = _proposal.incentiveAmount;
-        uint totalVoters = _proposal.activeVoters;
-
-        // Take out the executioner's cut and the burn amount
-        uint execusCutAmount = baseTokenAmount * execusCut / 100;
-        uint burnCutAmount = baseTokenAmount * burnCut / 100;
-
-        // Actual total and the individual share each voter receives
-        uint totalTokenAmount = baseTokenAmount - burnCutAmount - execusCutAmount;
-        uint indTotalTokenAmount = totalTokenAmount / totalVoters;
-
         if(_isItForProposals) {
             if(_voter.isExecutioner) {
-                cld.transfer(_voterAddr, _amount + indTotalTokenAmount + execusCutAmount);
-                _proposal.incentiveAmount -= indTotalTokenAmount + execusCutAmount;
+                uint _specialExecutShare = _voter.incentiveShare + _proposal.amountToExecutioner;
+                uint _totalAmount = _amount + _specialExecutShare;
+                cld.transfer(_voterAddr, _totalAmount);
+                _proposal.incentiveAmount -= _totalAmount;
             } else {
-                cld.transfer(_voterAddr, _amount + indTotalTokenAmount);
-                _proposal.incentiveAmount -= indTotalTokenAmount;  
+                uint _totalAmount = _amount + _voter.incentiveShare;
+                cld.transfer(_voterAddr, _totalAmount);
+                _proposal.incentiveAmount -= _totalAmount;  
             }
             _voter.votesLocked -= _amount;
 
+            // TO DO burn mechanic
             cld.Burn(burnCutAmount);
 
         } else {
@@ -306,12 +314,31 @@ contract VotingSystem {
         }
     }
 
-    function _checkIfHolder() internal view {
-        address _user = msg.sender;
-        uint _userBalance = cld.balanceOf(_user);
+    function _updateAmountToBurn(uint _proposalId) internal {
+        ProposalCore storage _proposal = proposal[_proposalId];
 
-        // A member should X amount of CLD
-        require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
+        uint baseTokenAmount = _proposal.incentiveAmount;
+        uint newBurnAmount = baseTokenAmount * burnCut / 100;
+        _proposal.amountToBurn = newBurnAmount;
+    }
+    
+    function _updateAmountToExecutioner(uint _proposalId) internal {
+        ProposalCore storage _proposal = proposal[_proposalId];
+
+        uint baseTokenAmount = _proposal.incentiveAmount;
+        uint newToExecutAmount = baseTokenAmount * execusCut / 100;
+        _proposal.amountToExecutioner = newToExecutAmount;
+    }
+
+    function _updateIndIncetiveShare(uint _proposalId) internal {
+        ProposalCore storage _proposal = proposal[_proposalId];
+        VoterInfo storage _voter = voterInfo[_proposalId][msg.sender];
+
+        uint baseTokenAmount = _proposal.incentiveAmount;
+        uint totalVoters = _proposal.activeVoters;
+        uint incentiveTaxes = _proposal.amountToBurn + _proposal.amountToExecutioner;
+        uint newIndIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
+        _voter.incentiveShare = newIndIncetive;
     }
 
     /////////////////////////////////////////
