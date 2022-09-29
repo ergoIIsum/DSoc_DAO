@@ -37,17 +37,17 @@ contract VotingSystem {
         uint voteEnd;
         bool executed;
         uint activeVoters;
-        uint voteCount;
+        //uint voteCount;
         uint approvingVotes;
         uint refusingVotes;
         uint incentiveAmount;
+        uint incentiveShare;
         uint amountToBurn;
         uint amountToExecutioner;
     }
 
     struct VoterInfo {
         uint votesLocked;
-        uint incentiveShare;
         // These two below is for debug purposes, take them out is a TO DO
         uint approvingVotes;
         uint refusingVotes;  
@@ -106,10 +106,11 @@ contract VotingSystem {
                 voteEnd: endsIn,
                 executed: false,
                 activeVoters: 0,
-                voteCount: 0,
+                // voteCount: 0,
                 approvingVotes: 0,
                 refusingVotes: 0,
                 incentiveAmount: 0,
+                incentiveShare: 0,
                 amountToBurn: 0,
                 amountToExecutioner: 0
             })
@@ -126,7 +127,7 @@ contract VotingSystem {
         uint,
         bool,
         uint,
-        uint,
+        //uint,
         uint,
         uint,
         uint
@@ -140,7 +141,7 @@ contract VotingSystem {
             _proposal.voteEnd,
             _proposal.executed,
             _proposal.activeVoters,
-            _proposal.voteCount,
+            // _proposal.voteCount,
             _proposal.approvingVotes,
             _proposal.refusingVotes,
             _proposal.incentiveAmount
@@ -195,7 +196,7 @@ contract VotingSystem {
 
         cld.transferFrom(msg.sender, address(this), amount);
 
-        _proposal.voteCount += amount;
+        // _proposal.voteCount += amount;
         if(_optionHash == approvalHash) {
             _proposal.approvingVotes += amount;
             _voter.approvingVotes += amount;
@@ -278,6 +279,8 @@ contract VotingSystem {
         require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
     }
 
+
+    // WIP
     function _returnTokens(
         uint _proposalId,
         address _voterAddr,
@@ -294,24 +297,37 @@ contract VotingSystem {
 
         if(_isItForProposals) {
             if(_voter.isExecutioner) {
-                uint _specialExecutShare = _voter.incentiveShare + _proposal.amountToExecutioner;
+                uint _specialExecutShare = _proposal.incentiveShare + _proposal.amountToExecutioner;
                 uint _totalAmount = _amount + _specialExecutShare;
                 cld.transfer(_voterAddr, _totalAmount);
                 _proposal.incentiveAmount -= _totalAmount;
             } else {
-                uint _totalAmount = _amount + _voter.incentiveShare;
+                uint _totalAmount = _amount + _proposal.incentiveShare;
                 cld.transfer(_voterAddr, _totalAmount);
                 _proposal.incentiveAmount -= _totalAmount;  
             }
             _voter.votesLocked -= _amount;
 
-            // TO DO burn mechanic
-            cld.Burn(burnCutAmount);
-
+          _burnIncentiveShare(_proposalId);
         } else {
             cld.transfer(_voterAddr, _amount);
             _voter.votesLocked -= _amount;
         }
+
+        // TO DO
+        // emit token
+    }
+
+    function _burnIncentiveShare(uint _proposalId) internal {
+        ProposalCore storage _proposal = proposal[_proposalId];
+
+        uint amount = _proposal.amountToBurn;
+        cld.Burn(amount);
+        _proposal.amountToBurn -= amount;
+
+        // TO DO
+        // emit burn event
+
     }
 
     function _updateAmountToBurn(uint _proposalId) internal {
@@ -329,18 +345,17 @@ contract VotingSystem {
         uint newToExecutAmount = baseTokenAmount * execusCut / 100;
         _proposal.amountToExecutioner = newToExecutAmount;
     }
-
+        
     function _updateIndIncetiveShare(uint _proposalId) internal {
         ProposalCore storage _proposal = proposal[_proposalId];
-        // TO DO Fix this, this needs to be a global number
-        VoterInfo storage _voter = voterInfo[_proposalId][msg.sender];
 
         uint baseTokenAmount = _proposal.incentiveAmount;
         uint totalVoters = _proposal.activeVoters;
-        uint incentiveTaxes = _proposal.amountToBurn + _proposal.amountToExecutioner;
-        uint newIndIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
-        _voter.incentiveShare = newIndIncetive;
-    }
+        uint incentiveTaxes = _proposal.amountToBurn;
+        uint newIndividualIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
+        _proposal.incentiveShare = newIndividualIncetive;
+     
+    }   
 
     /////////////////////////////////////////
     /////          Debug Tools          /////
