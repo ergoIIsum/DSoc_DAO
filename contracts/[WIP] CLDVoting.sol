@@ -3,7 +3,6 @@ pragma solidity ^0.8.4;
 
 // These are some useful tools for ease of use
 import "./libraries.sol";
-// The CLD token ABI
 import "./ClassicDAO.sol";
 // TO DO Treasury module
 // import "./CLDTreasury";
@@ -17,19 +16,31 @@ import "./ClassicDAO.sol";
  * voters and deduced from the locked voting power
  */
 contract VotingSystem {
-    // Useful goodies
     using Arrays for uint256[];
     ClassicDAO internal cld;
 
-    modifier onlyHolder() {
-        _checkIfHolder();
-        _;
-    }
+    // Hashes for voting options
+    bytes32 internal constant approvalHash = keccak256("approve");
+    bytes32 internal constant refusalHash = keccak256("refuse");
 
-    // A proposal is composed of 
-    // a time to begin
-    // a time to end
-    // if it has been executed or not
+    // Proposal executioner's bonus, proposal incentive burn percentage 
+    uint public execusCut;
+    uint public burnCut;
+    address public operator;
+
+    /* Events
+     TO DO:
+        // Proposal creation
+        event ProposalCreated(address proposer, uint voteStart, uint voteEnd);
+        // Proposal incentivizing
+        event ProposalIncentivized(address donator, uint proposalId, uint amountDonated)
+        Casting vote
+        Incentive withdraw?
+        event IncentiveWithdrawed(uint remainingIncentive)
+    */
+    // Proposal execution
+    event ProposalExecuted(address executor, uint proposalId, uint amountBurned);
+
     struct ProposalCore {
         string proposalName;
         uint voteStart;
@@ -61,21 +72,10 @@ contract VotingSystem {
     // Map user addresses over their info
     mapping (uint256 => mapping (address => VoterInfo)) internal voterInfo;
  
-    // Mapping proposal to a number [Unused code]
-    // mapping(uint256 => ProposalCore) internal proposalsID;
-
-    // Hashes for voting options
-    bytes32 internal constant approvalHash = keccak256("approve");
-    bytes32 internal constant refusalHash = keccak256("refuse");
-
-    // Proposal executioner's bonus, proposal incentive burn percentage 
-    // TO DO can be set by the DAO
-    uint public execusCut;
-    uint public burnCut;
-    address public operator;
-
-    // Events
-    // TO DO
+    modifier onlyHolder() {
+        _checkIfHolder();
+        _;
+    }
 
     constructor(ClassicDAO cldAddr, address _opAddr, uint _burnCut, uint _execusCut) 
     {
@@ -111,6 +111,9 @@ contract VotingSystem {
                 amountToExecutioner: 0
             })
         );
+
+        // TO DO
+        // emit event
     }
 
     function incentivizeProposal(uint proposalId, uint amount) external {
@@ -179,6 +182,9 @@ contract VotingSystem {
         _voter.votesLocked += amount;
         _voter.voted = true;
         _proposal.activeVoters += 1;
+
+        // TO DO
+        // emit event
     }
 
     /*
@@ -201,6 +207,11 @@ contract VotingSystem {
         require(proposal[proposalId].voteEnd <= block.number, "Voting has not ended");
 
         proposal[proposalId].executed = true;
+
+        uint burntAmount = _burnIncentiveShare(proposalId);
+
+        // Test
+        emit ProposalExecuted(msg.sender, proposalId, burntAmount);
     }
 
     function withdrawIncentive(uint proposalId, address voter) external {
@@ -257,20 +268,6 @@ contract VotingSystem {
     /////////////////////////////////////////
     /////        Internal functions     /////
     /////////////////////////////////////////
-    function _doesProposalExists(uint _proposalId) internal view returns(bool)
-    {
-        // Simple: Does proposal exists (has a name)? Is executed? Is voting ongoing?
-        require(keccak256(abi.encodePacked(proposal[_proposalId].proposalName)) != 0);
-            return true;
-    }
-
-    function _checkIfHolder() internal view {
-        address _user = msg.sender;
-        uint _userBalance = cld.balanceOf(_user);
-
-        // A member should X amount of CLD
-        require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
-    }
 
     // WIP
     function _returnTokens(
@@ -297,9 +294,7 @@ contract VotingSystem {
                 proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare;  
             }
             voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
-
-            _burnIncentiveShare(_proposalId);
-        } else {
+        } else {  // Debug only
             cld.transfer(_voterAddr, _amount);
             voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         }
@@ -307,13 +302,12 @@ contract VotingSystem {
         // emit token
     }
 
-    function _burnIncentiveShare(uint _proposalId) internal {
+    function _burnIncentiveShare(uint _proposalId) internal returns(uint) {
         uint amount = proposal[_proposalId].amountToBurn;
         cld.Burn(amount);
         proposal[_proposalId].amountToBurn -= amount;
 
-        // TO DO
-        // emit burn event
+        return(amount);
     }
 
     function _updateAmountToBurn(uint _proposalId) internal {
@@ -335,6 +329,20 @@ contract VotingSystem {
         uint newIndividualIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
         proposal[_proposalId].incentiveShare = newIndividualIncetive;
     }   
+
+    function _doesProposalExists(uint _proposalId) internal view returns(bool) {
+        // Simple: Does proposal exists (has a name)? Is executed? Is voting ongoing?
+        require(keccak256(abi.encodePacked(proposal[_proposalId].proposalName)) != 0);
+            return true;
+    }
+
+    function _checkIfHolder() internal view {
+        address _user = msg.sender;
+        uint _userBalance = cld.balanceOf(_user);
+
+        // A member should X amount of CLD
+        require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
+    }
 
     /////////////////////////////////////////
     /////          Debug Tools          /////
