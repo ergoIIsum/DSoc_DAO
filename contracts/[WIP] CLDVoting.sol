@@ -30,16 +30,13 @@ contract VotingSystem {
 
     /* Events
      TO DO:
-        // Proposal creation
-        event ProposalCreated(address proposer, uint voteStart, uint voteEnd);
-        // Proposal incentivizing
-        event ProposalIncentivized(address donator, uint proposalId, uint amountDonated)
-        Casting vote
-        Incentive withdraw?
-        event IncentiveWithdrawed(uint remainingIncentive)
+        TESTING
     */
-    // Proposal execution
+    event ProposalCreated(address proposer, string proposalName, uint voteStart, uint voteEnd);
     event ProposalExecuted(address executor, uint proposalId, uint amountBurned);
+    event CastedVote(uint proposalId, string option, uint votesCasted);
+    event ProposalIncentivized(address donator, uint proposalId, uint amountDonated);
+    event IncentiveWithdrawed(uint remainingIncentive);
 
     struct ProposalCore {
         string proposalName;
@@ -58,20 +55,21 @@ contract VotingSystem {
 
     struct VoterInfo {
         uint votesLocked;
-        // These two below is for debug purposes, take them out is a TO DO
+        // These two below are for debug purposes, TO DO take them out
         uint approvingVotes;
         uint refusingVotes;  
-        // These two above is for debug purposes, take them out is a TO DO
+        // These two above are for debug purposes, TO DO take them out
         bool voted;
         bool isExecutioner;
     }
 
     // Proposals being tracked by id here
-    ProposalCore[] public proposal;
-
+    ProposalCore[] internal proposal;
     // Map user addresses over their info
     mapping (uint256 => mapping (address => VoterInfo)) internal voterInfo;
  
+    // TO DO onlyDAO()
+
     modifier onlyHolder() {
         _checkIfHolder();
         _;
@@ -86,7 +84,6 @@ contract VotingSystem {
     }
 
     function createProposal(string memory name, uint time) external onlyHolder {
-        // Check the proposal name and end time is not empty
         require(keccak256(abi.encodePacked(name)) != 0, "Proposals need a name");
         require(time != 0, "Proposals need an end time");
 
@@ -111,9 +108,7 @@ contract VotingSystem {
                 amountToExecutioner: 0
             })
         );
-
-        // TO DO
-        // emit event
+        emit ProposalCreated(msg.sender, name, beginsNow, endsIn);
     }
 
     function incentivizeProposal(uint proposalId, uint amount) external {
@@ -136,8 +131,7 @@ contract VotingSystem {
         _updateAmountToExecutioner(proposalId);
         _updateIndIncetiveShare(proposalId);
 
-        // TO DO
-        // emit event
+        emit ProposalIncentivized(msg.sender, proposalId, _proposal.incentiveAmount);
     }
 
     function castVote(
@@ -163,28 +157,23 @@ contract VotingSystem {
         );
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
 
-        ProposalCore storage _proposal = proposal[proposalId];
-        VoterInfo storage _voter = voterInfo[proposalId][msg.sender];
-
-        require(!_voter.voted, "You already voted in this proposal");
-        require(block.number < _proposal.voteEnd, "The voting period has ended");
+        require(!voterInfo[proposalId][msg.sender].voted, "You already voted in this proposal");
+        require(block.number < proposal[proposalId].voteEnd, "The voting period has ended");
 
         cld.transferFrom(msg.sender, address(this), amount);
 
-        // _proposal.voteCount += amount;
         if(_optionHash == approvalHash) {
-            _proposal.approvingVotes += amount;
-            _voter.approvingVotes += amount;
+            proposal[proposalId].approvingVotes += amount;
+            voterInfo[proposalId][msg.sender].approvingVotes += amount;
+            emit CastedVote(proposalId, "approval", amount);
         } else {
-            _proposal.refusingVotes += amount;
-            _voter.refusingVotes += amount;
+            proposal[proposalId].refusingVotes += amount;
+            voterInfo[proposalId][msg.sender].refusingVotes += amount;
+            emit CastedVote(proposalId, "refusal", amount);
         }
-        _voter.votesLocked += amount;
-        _voter.voted = true;
-        _proposal.activeVoters += 1;
-
-        // TO DO
-        // emit event
+        voterInfo[proposalId][msg.sender].votesLocked += amount;
+        voterInfo[proposalId][msg.sender].voted = true;
+        proposal[proposalId].activeVoters += 1;
     }
 
     /*
@@ -210,14 +199,15 @@ contract VotingSystem {
 
         uint burntAmount = _burnIncentiveShare(proposalId);
 
-        // Test
         emit ProposalExecuted(msg.sender, proposalId, burntAmount);
     }
 
     function withdrawIncentive(uint proposalId, address voter) external {
         _returnTokens(proposalId, voter, true);
+        emit IncentiveWithdrawed(proposal[proposalId].incentiveAmount);
     }
 
+    // TO DO make these three below onlyDAO
     function setBurnAmount(uint amount) external {
         require(msg.sender == operator);
         require(amount < 100);
@@ -269,15 +259,13 @@ contract VotingSystem {
     /////        Internal functions     /////
     /////////////////////////////////////////
 
-    // WIP
+    // WIP [TEST REQUIRED]
     function _returnTokens(
         uint _proposalId,
         address _voterAddr,
         bool _isItForProposals
         )
         internal {
-        
-        // Check the msg.sender has voted
         require(voterInfo[_proposalId][_voterAddr].votesLocked > 0, "You need to lock votes in order to take them out");
 
         uint _amount = voterInfo[_proposalId][_voterAddr].votesLocked;
@@ -298,8 +286,6 @@ contract VotingSystem {
             cld.transfer(_voterAddr, _amount);
             voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         }
-        // TO DO
-        // emit token
     }
 
     function _burnIncentiveShare(uint _proposalId) internal returns(uint) {
@@ -340,7 +326,7 @@ contract VotingSystem {
         address _user = msg.sender;
         uint _userBalance = cld.balanceOf(_user);
 
-        // A member should X amount of CLD
+        // TO DO make this number a variable, onlyDAO can modify it
         require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
     }
 
