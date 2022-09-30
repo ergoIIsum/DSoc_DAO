@@ -66,10 +66,11 @@ contract VotingSystem {
         bool isExecutioner;
     }
 
+    // TO DO Make these internal
     // Proposals being tracked by id here
-    ProposalCore[] internal proposal;
+    ProposalCore[] public proposal;
     // Map user addresses over their info
-    mapping (uint256 => mapping (address => VoterInfo)) internal voterInfo;
+    mapping (uint256 => mapping (address => VoterInfo)) public voterInfo;
  
      modifier onlyDAO() {
         _checkIfDAO();
@@ -92,6 +93,7 @@ contract VotingSystem {
     function createProposal(string memory name, uint time) external onlyHolder {
         require(keccak256(abi.encodePacked(name)) != 0, "Proposals need a name");
         require(time != 0, "Proposals need an end time");
+        // TO DO Verify names are not repeated
 
         uint beginsNow = block.number;
         uint endsIn = block.number + time;
@@ -208,12 +210,11 @@ contract VotingSystem {
         emit ProposalExecuted(msg.sender, proposalId, burntAmount);
     }
 
-    function withdrawIncentive(uint proposalId, address voter) external {
-        _returnTokens(proposalId, voter, true);
+    function withdrawMyTokens(uint proposalId) external {
+        _returnTokens(proposalId, msg.sender, true);
         emit IncentiveWithdrawed(proposal[proposalId].incentiveAmount);
     }
 
-    // TO DO make these three below onlyDAO
     function setBurnAmount(uint amount) external onlyDAO {
         require(msg.sender == operator);
         require(amount < 100);
@@ -232,7 +233,7 @@ contract VotingSystem {
         operator = newAddr;
     }
 
-    function updateMemberHolding(uint amount) external onlyDAO {
+    function setMemberHolding(uint amount) external onlyDAO {
         memberHolding = amount;
     }
 
@@ -245,6 +246,7 @@ contract VotingSystem {
         uint,
         uint,
         bool,
+        uint,
         uint,
         uint,
         uint,
@@ -261,7 +263,8 @@ contract VotingSystem {
             _proposal.activeVoters,
             _proposal.approvingVotes,
             _proposal.refusingVotes,
-            _proposal.incentiveAmount
+            _proposal.incentiveAmount,
+            _proposal.incentiveShare
             );
     }
     
@@ -286,10 +289,12 @@ contract VotingSystem {
                 uint _totalAmount = _amount + _specialExecutShare;
                 cld.transfer(_voterAddr, _totalAmount);
                 proposal[_proposalId].incentiveAmount -= _specialExecutShare;
+                voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
             } else {
                 uint _totalAmount = _amount + proposal[_proposalId].incentiveShare;
                 cld.transfer(_voterAddr, _totalAmount);
-                proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare;  
+                proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare; 
+                voterInfo[_proposalId][_voterAddr].votesLocked -= _amount; 
             }
             voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         } else {  // Debug only
