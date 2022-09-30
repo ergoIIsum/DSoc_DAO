@@ -5,7 +5,9 @@ pragma solidity ^0.8.4;
 import "./libraries.sol";
 import "./ClassicDAO.sol";
 // TO DO Treasury module
-// import "./CLDTreasury";
+// import "./CLDTreasury.sol";
+// TO DO Proposer module
+// import "./CLDProposer.sol";
 
 /** 
  * @title ClassicDAO Voting system
@@ -27,6 +29,7 @@ contract VotingSystem {
     uint public execusCut;
     uint public burnCut;
     address public operator;
+    uint public memberHolding;
 
     /* Events
      TO DO:
@@ -68,7 +71,10 @@ contract VotingSystem {
     // Map user addresses over their info
     mapping (uint256 => mapping (address => VoterInfo)) internal voterInfo;
  
-    // TO DO onlyDAO()
+     modifier onlyDAO() {
+        _checkIfDAO();
+        _;
+    }
 
     modifier onlyHolder() {
         _checkIfHolder();
@@ -208,22 +214,26 @@ contract VotingSystem {
     }
 
     // TO DO make these three below onlyDAO
-    function setBurnAmount(uint amount) external {
+    function setBurnAmount(uint amount) external onlyDAO {
         require(msg.sender == operator);
         require(amount < 100);
         burnCut = amount;
     }
 
-    function setExecCut(uint amount) external {
+    function setExecCut(uint amount) external onlyDAO {
         require(msg.sender == operator);
         require(amount < 100);
         execusCut = amount;
     }
 
-    function setOperator(address newAddr) external {
+    function setOperator(address newAddr) external onlyDAO {
         require(msg.sender == operator);
         require(operator != newAddr);
         operator = newAddr;
+    }
+
+    function updateMemberHolding(uint amount) external onlyDAO {
+        memberHolding = amount;
     }
 
     function seeProposalInfo(uint proposalId) 
@@ -325,9 +335,12 @@ contract VotingSystem {
     function _checkIfHolder() internal view {
         address _user = msg.sender;
         uint _userBalance = cld.balanceOf(_user);
+        require(_userBalance >= memberHolding, "Sorry, you are not a DAO member"); 
+    }
 
-        // TO DO make this number a variable, onlyDAO can modify it
-        require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
+    function _checkIfDAO() internal view {
+        address _user = msg.sender;
+        require(_user == operator, "This function can only be called by the DAO");
     }
 
     /////////////////////////////////////////
