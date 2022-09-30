@@ -37,7 +37,6 @@ contract VotingSystem {
         uint voteEnd;
         bool executed;
         uint activeVoters;
-        //uint voteCount;
         uint approvingVotes;
         uint refusingVotes;
         uint incentiveAmount;
@@ -78,10 +77,8 @@ contract VotingSystem {
     // Events
     // TO DO
 
-    constructor(ClassicDAO cldAddr, 
-        address _opAddr, 
-        uint _burnCut,
-        uint _execusCut) {
+    constructor(ClassicDAO cldAddr, address _opAddr, uint _burnCut, uint _execusCut) 
+    {
         cld = cldAddr;
         operator = _opAddr;
         burnCut = _burnCut;
@@ -106,7 +103,6 @@ contract VotingSystem {
                 voteEnd: endsIn,
                 executed: false,
                 activeVoters: 0,
-                // voteCount: 0,
                 approvingVotes: 0,
                 refusingVotes: 0,
                 incentiveAmount: 0,
@@ -117,37 +113,7 @@ contract VotingSystem {
         );
     }
 
-    function seeProposalInfo(uint proposalId) 
-    public 
-    view 
-    returns (
-        string memory,
-        uint,
-        uint,
-        uint,
-        bool,
-        uint,
-        //uint,
-        uint,
-        uint,
-        uint
-    ) {
-        ProposalCore memory _proposal = proposal[proposalId];      
-        return (
-            _proposal.proposalName,
-            _proposal.voteStart,
-            _proposal.voteTime,
-            _proposal.voteEnd,
-            _proposal.executed,
-            _proposal.activeVoters,
-            // _proposal.voteCount,
-            _proposal.approvingVotes,
-            _proposal.refusingVotes,
-            _proposal.incentiveAmount
-            );
-    }
-
-    function incentivizeProposal(uint proposalId, uint amount) public {
+    function incentivizeProposal(uint proposalId, uint amount) external {
         require(cld.balanceOf(msg.sender) >= amount, 
         "You do not have enough CLD to stake this amount"
         );
@@ -175,17 +141,22 @@ contract VotingSystem {
         uint amount,
         uint proposalId, 
         string memory option
-        ) external { 
-        require(cld.balanceOf(msg.sender) >= amount, 
-        "You do not have enough CLD to stake this amount"
+        ) 
+        external 
+    { 
+        require(
+            cld.balanceOf(msg.sender) >= amount, 
+            "You do not have enough CLD to vote this amount"
         );
-        require(cld.allowance(msg.sender, address(this)) >= amount, 
-        "You have not given the staking contract enough allowance"
+        require(
+            cld.allowance(msg.sender, address(this)) >= amount, 
+            "You have not given the voting contract enough allowance"
         );
 
         bytes32 _optionHash = keccak256(abi.encodePacked(option));
-        require(_optionHash == approvalHash || _optionHash == refusalHash, 
-        "You must either 'approve' or 'refuse'"
+        require(
+            _optionHash == approvalHash || _optionHash == refusalHash, 
+            "You must either 'approve' or 'refuse'"
         );
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
 
@@ -222,10 +193,7 @@ contract VotingSystem {
     // Proposal execution code
     // Placeholder TO DO
 
-    function executeProposal(
-        uint proposalId
-        // bytes[] memory calldatas // TO DO
-        ) external { 
+    function executeProposal( uint proposalId) external { 
         voterInfo[proposalId][msg.sender].isExecutioner = true;
 
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
@@ -256,6 +224,35 @@ contract VotingSystem {
         require(operator != newAddr);
         operator = newAddr;
     }
+
+    function seeProposalInfo(uint proposalId) 
+    public 
+    view 
+    returns (
+        string memory,
+        uint,
+        uint,
+        uint,
+        bool,
+        uint,
+        uint,
+        uint,
+        uint
+    ) 
+    {
+        ProposalCore memory _proposal = proposal[proposalId];      
+        return (
+            _proposal.proposalName,
+            _proposal.voteStart,
+            _proposal.voteTime,
+            _proposal.voteEnd,
+            _proposal.executed,
+            _proposal.activeVoters,
+            _proposal.approvingVotes,
+            _proposal.refusingVotes,
+            _proposal.incentiveAmount
+            );
+    }
     
     /////////////////////////////////////////
     /////        Internal functions     /////
@@ -274,7 +271,6 @@ contract VotingSystem {
         // A member should X amount of CLD
         require(_userBalance >= 1000000000000000000, "Sorry, you are not a DAO member"); 
     }
-
 
     // WIP
     function _returnTokens(
@@ -307,7 +303,6 @@ contract VotingSystem {
             cld.transfer(_voterAddr, _amount);
             voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         }
-
         // TO DO
         // emit token
     }
@@ -345,13 +340,18 @@ contract VotingSystem {
     /////          Debug Tools          /////
     /////////////////////////////////////////
 
-    function viewVoterInfo(address voter, uint proposalId) external view returns(
+    function viewVoterInfo(
+        address voter, 
+        uint proposalId
+        ) 
+        external view returns (
         uint,
         uint,
         uint,  
         bool 
-    ) {
-        return(
+    ) 
+    {
+        return (
             voterInfo[proposalId][voter].votesLocked,
             voterInfo[proposalId][voter].approvingVotes,
             voterInfo[proposalId][voter].refusingVotes,
