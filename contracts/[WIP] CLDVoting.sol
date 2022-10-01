@@ -36,7 +36,7 @@ contract VotingSystem {
         TESTING
     */
     event ProposalCreated(address proposer, string proposalName, uint voteStart, uint voteEnd);
-    event ProposalExecuted(address executor, uint proposalId, uint amountBurned);
+    event ProposalExecuted(address executor, uint proposalId, uint amountBurned, uint executShare);
     event CastedVote(uint proposalId, string option, uint votesCasted);
     event ProposalIncentivized(address donator, uint proposalId, uint amountDonated);
     event IncentiveWithdrawed(uint remainingIncentive);
@@ -201,15 +201,22 @@ contract VotingSystem {
         voterInfo[proposalId][msg.sender].isExecutioner = true;
 
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
-        require(proposal[proposalId].activeVoters > 0, "Can't execute proposals without voters!");
-        require(!proposal[proposalId].executed, "Proposal already executed!");
         require(proposal[proposalId].voteEnd <= block.number, "Voting has not ended");
+        require(!proposal[proposalId].executed, "Proposal already executed!");
+        require(proposal[proposalId].activeVoters > 0, "Can't execute proposals without voters!");
+        _updateAmountToBurn(proposalId);
+        _updateAmountToExecutioner(proposalId);
+        _updateIndIncetiveShare(proposalId);
+
+        uint burntAmount = _burnIncentiveShare(proposalId);
+        uint executShare = proposal[proposalId].amountToExecutioner;
+        cld.transfer(msg.sender, executShare);
+        proposal[proposalId].incentiveAmount -= proposal[proposalId].amountToExecutioner;
+        proposal[proposalId].amountToExecutioner = 0;
 
         proposal[proposalId].executed = true;
 
-        uint burntAmount = _burnIncentiveShare(proposalId);
-
-        emit ProposalExecuted(msg.sender, proposalId, burntAmount);
+        emit ProposalExecuted(msg.sender, proposalId, burntAmount, executShare);
     }
 
     function withdrawMyTokens(uint proposalId) external {
@@ -295,18 +302,9 @@ contract VotingSystem {
                     voterInfo[_proposalId][_voterAddr].votesLocked > 0, 
                     "You need to lock votes in order to take them out"
                 );
-                if(voterInfo[_proposalId][_voterAddr].isExecutioner) {
-                    uint _specialExecutShare = proposal[_proposalId].incentiveShare + 
-                    proposal[_proposalId].amountToExecutioner;
-                    uint _totalAmount = _amount + _specialExecutShare;
-                    cld.transfer(_voterAddr, _totalAmount);
-                    proposal[_proposalId].incentiveAmount -= _specialExecutShare;
-                    proposal[_proposalId].amountToExecutioner = 0;
-                } else {
-                    uint _totalAmount = _amount + proposal[_proposalId].incentiveShare;
-                    cld.transfer(_voterAddr, _totalAmount);
-                    proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare; 
-                }
+                uint _totalAmount = _amount + proposal[_proposalId].incentiveShare;
+                cld.transfer(_voterAddr, _totalAmount);
+                proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare; 
             } else {
                 require(
                     voterInfo[_proposalId][_voterAddr].amountDonated > 0, 
@@ -395,7 +393,7 @@ contract VotingSystem {
             voterInfo[proposalId][voter].approvingVotes,
             voterInfo[proposalId][voter].refusingVotes,
             voterInfo[proposalId][voter].voted
-            );
+        );
     }
 
     function takeMyTokensOut(uint proposalId) external {
