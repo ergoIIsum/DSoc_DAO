@@ -58,6 +58,7 @@ contract VotingSystem {
 
     struct VoterInfo {
         uint votesLocked;
+        uint amountDonated;
         // These two below are for debug purposes, TO DO take them out
         uint approvingVotes;
         uint refusingVotes;  
@@ -82,12 +83,12 @@ contract VotingSystem {
         _;
     }
 
-    constructor(ClassicDAO cldAddr, address _opAddr, uint _burnCut, uint _execusCut) 
+    constructor(ClassicDAO cldAddr) 
     {
         cld = cldAddr;
-        operator = _opAddr;
-        burnCut = _burnCut;
-        execusCut = _execusCut;
+        operator = msg.sender;
+        burnCut = 10;
+        execusCut = 10;
     }
 
     function createProposal(string memory name, uint time) external onlyHolder {
@@ -128,18 +129,18 @@ contract VotingSystem {
         );
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
         
-        ProposalCore storage _proposal = proposal[proposalId];
-        require(block.number < _proposal.voteEnd, 
+        require(block.number < proposal[proposalId].voteEnd, 
         "The voting period has ended, save for the next proposal!"
         );
 
         cld.transferFrom(msg.sender, address(this), amount);
-        _proposal.incentiveAmount += amount;
+        proposal[proposalId].incentiveAmount += amount;
+        voterInfo[proposalId][msg.sender].amountDonated += amount;
         _updateAmountToBurn(proposalId);
         _updateAmountToExecutioner(proposalId);
         _updateIndIncetiveShare(proposalId);
 
-        emit ProposalIncentivized(msg.sender, proposalId, _proposal.incentiveAmount);
+        emit ProposalIncentivized(msg.sender, proposalId, proposal[proposalId].incentiveAmount);
     }
 
     function castVote(
@@ -200,7 +201,8 @@ contract VotingSystem {
         voterInfo[proposalId][msg.sender].isExecutioner = true;
 
         require(_doesProposalExists(proposalId), "Proposal doesn't exist!");
-        require(!proposal[proposalId].executed, 'Proposal already executed!');
+        require(proposal[proposalId].activeVoters > 0, "Can't execute proposals without voters!");
+        require(!proposal[proposalId].executed, "Proposal already executed!");
         require(proposal[proposalId].voteEnd <= block.number, "Voting has not ended");
 
         proposal[proposalId].executed = true;
@@ -211,24 +213,28 @@ contract VotingSystem {
     }
 
     function withdrawMyTokens(uint proposalId) external {
-        _returnTokens(proposalId, msg.sender, true);
+        if (proposal[proposalId].activeVoters > 0) {
+            require(proposal[proposalId].executed, 'Proposal has not been executed!');
+            _returnTokens(proposalId, msg.sender, true);
+        } else {
+            _returnTokens(proposalId, msg.sender, true);
+        }
         emit IncentiveWithdrawed(proposal[proposalId].incentiveAmount);
     }
 
     function setBurnAmount(uint amount) external onlyDAO {
-        require(msg.sender == operator);
-        require(amount < 100);
+        require(amount < 100, "Percentages can't be higher than 100");
+        require(amount > 0, "This tax can't be zeroed!");
         burnCut = amount;
     }
 
     function setExecCut(uint amount) external onlyDAO {
-        require(msg.sender == operator);
-        require(amount < 100);
+        require(amount < 100, "Percentages can't be higher than 100");
+        require(amount > 0, "This tax can't be zeroed!");
         execusCut = amount;
     }
 
     function setOperator(address newAddr) external onlyDAO {
-        require(msg.sender == operator);
         require(operator != newAddr);
         operator = newAddr;
     }
@@ -279,28 +285,42 @@ contract VotingSystem {
         bool _isItForProposals
         )
         internal {
-        require(voterInfo[_proposalId][_voterAddr].votesLocked > 0, "You need to lock votes in order to take them out");
+        require(block.number > proposal[_proposalId].voteEnd, "The voting period hasn't ended");
 
         uint _amount = voterInfo[_proposalId][_voterAddr].votesLocked;
 
-        if(_isItForProposals) {
-            if(voterInfo[_proposalId][_voterAddr].isExecutioner) {
-                uint _specialExecutShare = proposal[_proposalId].incentiveShare + proposal[_proposalId].amountToExecutioner;
-                uint _totalAmount = _amount + _specialExecutShare;
-                cld.transfer(_voterAddr, _totalAmount);
-                proposal[_proposalId].incentiveAmount -= _specialExecutShare;
-                voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
+        if(_isItForProposals) { // Debug only
+            if (proposal[_proposalId].activeVoters > 0) {
+                require(
+                    voterInfo[_proposalId][_voterAddr].votesLocked > 0, 
+                    "You need to lock votes in order to take them out"
+                );
+                if(voterInfo[_proposalId][_voterAddr].isExecutioner) {
+                    uint _specialExecutShare = proposal[_proposalId].incentiveShare + 
+                    proposal[_proposalId].amountToExecutioner;
+                    uint _totalAmount = _amount + _specialExecutShare;
+                    cld.transfer(_voterAddr, _totalAmount);
+                    proposal[_proposalId].incentiveAmount -= _specialExecutShare;
+                    proposal[_proposalId].amountToExecutioner = 0;
+                } else {
+                    uint _totalAmount = _amount + proposal[_proposalId].incentiveShare;
+                    cld.transfer(_voterAddr, _totalAmount);
+                    proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare; 
+                }
             } else {
-                uint _totalAmount = _amount + proposal[_proposalId].incentiveShare;
-                cld.transfer(_voterAddr, _totalAmount);
-                proposal[_proposalId].incentiveAmount -= proposal[_proposalId].incentiveShare; 
-                voterInfo[_proposalId][_voterAddr].votesLocked -= _amount; 
+                require(
+                    voterInfo[_proposalId][_voterAddr].amountDonated > 0, 
+                    "You have not incentivized this proposal"
+                );
+                uint incentiveToReturn = voterInfo[_proposalId][_voterAddr].amountDonated;
+                cld.transfer(_voterAddr, incentiveToReturn);
+                voterInfo[_proposalId][_voterAddr].amountDonated -= incentiveToReturn;
+                proposal[_proposalId].incentiveAmount -= incentiveToReturn;
             }
-            voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         } else {  // Debug only
             cld.transfer(_voterAddr, _amount);
-            voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
         }
+            voterInfo[_proposalId][_voterAddr].votesLocked -= _amount;
     }
 
     function _burnIncentiveShare(uint _proposalId) internal returns(uint) {
@@ -325,10 +345,14 @@ contract VotingSystem {
         
     function _updateIndIncetiveShare(uint _proposalId) internal {
         uint baseTokenAmount = proposal[_proposalId].incentiveAmount;
-        uint totalVoters = proposal[_proposalId].activeVoters;
         uint incentiveTaxes = proposal[_proposalId].amountToBurn + proposal[_proposalId].amountToExecutioner;
-        uint newIndividualIncetive = baseTokenAmount - incentiveTaxes / totalVoters;
-        proposal[_proposalId].incentiveShare = newIndividualIncetive;
+        uint totalTokenAmount = baseTokenAmount - incentiveTaxes;
+        if (proposal[_proposalId].activeVoters > 0) {
+            uint newIndividualIncetive = totalTokenAmount / proposal[_proposalId].activeVoters;
+            proposal[_proposalId].incentiveShare = newIndividualIncetive;
+        } else {
+            proposal[_proposalId].incentiveShare = totalTokenAmount;
+        }
     }   
 
     function _doesProposalExists(uint _proposalId) internal view returns(bool) {
@@ -338,9 +362,12 @@ contract VotingSystem {
     }
 
     function _checkIfHolder() internal view {
-        address _user = msg.sender;
-        uint _userBalance = cld.balanceOf(_user);
-        require(_userBalance >= memberHolding, "Sorry, you are not a DAO member"); 
+
+        if (memberHolding > 0) {
+            address _user = msg.sender;
+            uint _userBalance = cld.balanceOf(_user);
+            require(_userBalance >= memberHolding, "Sorry, you are not a DAO member");
+        } 
     }
 
     function _checkIfDAO() internal view {
@@ -381,4 +408,13 @@ contract VotingSystem {
 
 }
 
+/** 
+ * @title ClassicDAO Execution system
+ * @dev Implements a execution layer for 
+ * ClassicDAO 
+ * 
+ * As such, this should be the actual operator for the whole
+ * ClassicDAO system
+ */
 
+ // contract Executioner { }
