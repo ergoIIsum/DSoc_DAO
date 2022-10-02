@@ -6,9 +6,11 @@ import { deploy } from './ethers-lib'
 
 (async () => {
     try {
-        // TO DO first argument should be a BigNumber
-        const result = await deploy('ClassicDAO', [100000000, "Test Token", "TSTK"])
-        console.log(`address: ${result.address}`)
+        const classicDao = await deploy('ClassicDAO', [10000000000000000000n, "Test Token", "TSTK"])
+        console.log(`address: ${classicDao.address}`)
+
+        const votingSystem = await deploy('VotingSystem', [classicDao.address])
+        console.log(`address: ${votingSystem.address}`)
     } catch (e) {
         console.log(e.message)
     }
