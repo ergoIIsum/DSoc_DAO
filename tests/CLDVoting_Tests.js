@@ -17,21 +17,21 @@ describe("VotingSystem", function () {
     expect((await votingSystem.createProposal("Test Proposal 1", 1)));
     console.log('Verifying proposal values');
     let proposalData = await votingSystem.seeProposalInfo(0);
-    let parsedProposalData;
+    let parsedProposalData = [];
     let parseHexInProposalData = proposalData.map(function (element) {
         if (BigNumber.isBigNumber(element) && element.gt(0)) {
-            console.log(element.toNumber());
+            parsedProposalData.push(element.toNumber());
+        } else if (typeof element == "string") {
+            parsedProposalData.push(element);
         }
-    });
-    // expect((await votingSystem.seeProposalInfo(0)));
-  }); /*
-   it("test updating and retrieving updated value", async function () {
-    const Storage = await ethers.getContractFactory("Storage");
-    const storage = await Storage.deploy();
-    await storage.deployed();
-    const storage2 = await ethers.getContractAt("Storage", storage.address);
-    const setValue = await storage2.store(56);
-    await setValue.wait();
-    expect((await storage2.retrieve()).toNumber()).to.equal(56);
-  });*/
+    })
+    console.log("The proposal's name is " +parsedProposalData[0]);
+    console.log(`The proposal's start is in ${parsedProposalData[1]} blocks`);
+    console.log(`The proposal's duration is ${parsedProposalData[2]} blocks`);
+    console.log(`The proposal's end is ${parsedProposalData[3]} blocks`);;
+  }); 
+   it("Testing vote and incentivize", async function () {
+    expect((await votingSystem.createProposal("Test Proposal 2", 5)));
+    expect((await votingSystem.castVote(1000, 0, "approve")));
+  });
 });
