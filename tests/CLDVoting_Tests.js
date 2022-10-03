@@ -1,5 +1,5 @@
 // Right click on the script name and hit "Run" to execute
-import {BigNumber} from '@ethersproject/bignumber';
+import { BigNumber, ethers } from 'ethers'
 const { expect } = require("chai");
 const { ethers } = require("hardhat");
 
@@ -17,25 +17,13 @@ describe("VotingSystem", function () {
     expect((await votingSystem.createProposal("Test Proposal 1", 1)));
     console.log('Verifying proposal values');
     let proposalData = await votingSystem.seeProposalInfo(0);
+    let parsedProposalData;
     let parseHexInProposalData = proposalData.map(function (element) {
-        /*if (typeof element == BigNumber) {
-
-        }*/
-    // console.log(element, typeof element)
-    /*
-        _proposal.name,
-        _proposal.voteStart,
-        _proposal.voteTime,
-        _proposal.voteEnd,
-        _proposal.executed,
-        _proposal.activeVoters,
-        _proposal.approvingVotes,
-        _proposal.refusingVotes,
-        _proposal.incentiveAmount,
-        _proposal.incentiveShare
-     */
+        if (BigNumber.isBigNumber(element) && element.gt(0)) {
+            console.log(element.toNumber());
+        }
     });
-    expect((await votingSystem.seeProposalInfo(0)));
+    // expect((await votingSystem.seeProposalInfo(0)));
   }); /*
    it("test updating and retrieving updated value", async function () {
     const Storage = await ethers.getContractFactory("Storage");
