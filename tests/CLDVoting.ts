@@ -42,7 +42,7 @@ describe("VotingSystem", function () {
             expect(await CLD.allowance(thisUser.address, Vsystem.address)).to.equal(100000);
         }
 
-        expect(await Vsystem.createProposal("Test Proposal 0", 5)).to.emit(Vsystem, 'ProposalCreated');
+        expect(await Vsystem.createProposal("Test Proposal 0", 20)).to.emit(Vsystem, 'ProposalCreated');
 
         let proposalData = await Vsystem.seeProposalInfo(0);
         expect(proposalData[0]).to.have.string('Test Proposal 0');
@@ -67,30 +67,28 @@ describe("VotingSystem", function () {
     });
 */
     it("supports voting and incentivizing", async function () {
-        const {Vsystem, alice, bob, carol, david, erin} = await loadFixture(deployContractsFixture);
-        const [] = await ethers.getSigners();
+        const {Vsystem, alice, bob, carol, david, erin } = await loadFixture(deployContractsFixture);
         
+        let contractOwner = await Vsystem.operator();
+        assert.equal(alice.address, contractOwner, "Alice and the contractOwner are not the same!");
+
         for (let thisUser of [alice, bob, carol, david, erin]) {
-            // let tx = await Vsystem.connect(thisUser).castVote(100, 0, "approve");
-            // let receipt: ContractReceipt = await tx.wait(); 
 
-            await expect(
-                Vsystem.connect(thisUser).castVote(100, 0, "approve")
+            expect(
+                await Vsystem.connect(thisUser).castVote(100, 0, "approve")
             );
 
-            await expect(
-                Vsystem.connect(thisUser).incentivizeProposal(0, 20)
+            expect(
+                await Vsystem.connect(thisUser).incentivizeProposal(0, 20)
             );
-            // console.log(await time.latestBlock())
-            // await time.advanceBlock()
-            // console.log(await time.latestBlock())
-            // console.log(thisUser.address);
+
             let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
-            await expect(userVotes[4]).to.be.true;
+            expect(await userVotes[3]).to.be.true;
+            assert.equal(await userVotes[0], 100, 'This message will not be seen')
         }
     
-        //let proposalIncentiveAmount = await Vsystem.seeProposalInfo(0)
-        //console.log(proposalIncentiveAmount[9].toNumber())
-        //expect().to.equal(100);
+        let proposalIncentiveAmount = await Vsystem.seeProposalInfo(0)
+        console.log(proposalIncentiveAmount[9].toNumber())
+        expect(await proposalIncentiveAmount[8]).to.equal(100);
     });
 });
