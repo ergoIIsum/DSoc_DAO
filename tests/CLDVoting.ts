@@ -1,6 +1,6 @@
 const { assert, expect } = require("chai");
 const { BigNumber } = require("ethers");
-const { artifacts, contract, ethers } = require("hardhat");
+const { artifacts, contract, ethers, network } = require("hardhat");
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 const { changeTokenBalances } = require("@nomicfoundation/hardhat-chai-matchers");
 const { BN, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
@@ -72,6 +72,7 @@ describe("VotingSystem", function () {
             let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
             expect(userVotes[3]).to.be.true;
             assert.equal(userVotes[0], 100, "This message shall not be seen")
+            await network.provider.send("hardhat_mine", ["0x100"]);
         }
     
         let proposalInfo = await Vsystem.seeProposalInfo(0)
