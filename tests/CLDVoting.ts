@@ -38,7 +38,7 @@ describe("VotingSystem", function () {
             );
 
             // Test everything went fine
-            expect(await CLD.connect(thisUser).balanceOf(thisUser.address)).to.equal(100000);
+            expect(await CLD.balanceOf(thisUser.address)).to.equal(100000);
             expect(await CLD.allowance(thisUser.address, Vsystem.address)).to.equal(100000);
         }
 
@@ -47,7 +47,7 @@ describe("VotingSystem", function () {
         let proposalData = await Vsystem.seeProposalInfo(0);
         expect(proposalData[0]).to.have.string('Test Proposal 0');
 
-        return {Vsystem, alice, bob, carol, david, erin} ;
+        return {Vsystem, alice, bob, carol, david, erin, CLD} ;
     };
 
     it("is initialized correctly, with a test proposal set", function () {
@@ -59,7 +59,7 @@ describe("VotingSystem", function () {
         for (let thisUser of [alice, bob, carol, david, erin]) {
             expect(
                 await Vsystem.connect(thisUser).castVote(100, 0, "approve")
-            );
+            ).to.emit(Vsystem, "CastedVote");
             // We won't see this
             await expect(
                 Vsystem.connect(thisUser).castVote(100, 0, "approve"), 
@@ -67,7 +67,7 @@ describe("VotingSystem", function () {
 
             await expect(
                 Vsystem.connect(thisUser).incentivizeProposal(0, 20)
-            );
+            ).to.emit(Vsystem, "ProposalIncentivized");
 
             let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
             expect(userVotes[3]).to.be.true;
@@ -101,16 +101,29 @@ describe("VotingSystem", function () {
         const {Vsystem, alice, bob, carol, david } = await loadFixture(deployContractsFixture);
         
         for (let thisUser of [bob, carol, david]) {
-            // These should all fail
+            // These should all fail, users are not alice
             await expect(
                 Vsystem.connect(thisUser).setTaxAmount(50, "execusCut"), 
             ).to.be.revertedWith('This function can only be called by the DAO');
+        }
+        for (let thisWord of ["execuCut", "burCut", "membeHolding"]) {
+            // These should all fail, the string have typos
+            await expect(
+                Vsystem.connect(alice).setTaxAmount(11, `${thisWord}`), 
+            ).to.be.revertedWith("You didn't choose a valid setting to modify!");
         }
         for (let thisWord of ["execusCut", "burnCut", "memberHolding"]) {
             // These should all pass
             expect(
                 await Vsystem.connect(alice).setTaxAmount(11, `${thisWord}`), 
             );
+            // These should fail
+            await expect(
+                Vsystem.connect(alice).setTaxAmount(0, `${thisWord}`), 
+            ).to.be.revertedWith("This tax can't be zeroed!");
+            await expect(
+                Vsystem.connect(alice).setTaxAmount(101, `${thisWord}`), 
+            ).to.be.revertedWith("Percentages can't be higher than 100");
         }
 
         let execusCutAmount = await Vsystem.execusCut();
@@ -119,21 +132,54 @@ describe("VotingSystem", function () {
         assert.equal(burnCutAmount, 11, "This message shall not be seen")
         let memberHoldingAmount = await Vsystem.memberHolding();
         assert.equal(memberHoldingAmount, 11, "This message shall not be seen")
-
-        await expect(
-            Vsystem.connect(alice).setTaxAmount(50, "execuCut"), 
-        ).to.be.revertedWith("You didn't choose a valid setting to modify!");
-
-        await expect(
-            Vsystem.connect(alice).setTaxAmount(0, "execusCut"), 
-        ).to.be.revertedWith("This tax can't be zeroed!");
-
-
-
     });
 
-    // it("executes the proposals correctly, burning and paying the executioner's cut", async function () {
-    // });
+    it("executes the proposals correctly, burning and paying the executioner's cut", async function () {
+        const {Vsystem, alice, bob, carol, david, erin, CLD } = await loadFixture(deployContractsFixture);
+        expect(await CLD.balanceOf(erin.address)).to.equal(100000);
+
+        for (let thisUser of [alice, bob, carol, david]) {
+            expect(
+                await Vsystem.connect(thisUser).castVote(100, 0, "approve")
+            );
+
+            await expect(
+                Vsystem.connect(thisUser).incentivizeProposal(0, 23)
+            ).to.emit(Vsystem, "ProposalIncentivized");
+
+            let activeVoters = (await Vsystem.seeProposalInfo(0))[5]
+            let incentiveAmount = (await Vsystem.seeProposalInfo(0))[8]
+            let thisShouldBeIncentiveIndShare = incentiveAmount / activeVoters
+            let actualIncentiveIndShare = incentiveAmount
+            console.log("The incentive amount is "+ incentiveAmount)
+            console.log("The individual incentive share amount is "+ actualIncentiveIndShare)
+
+            assert.equal(actualIncentiveIndShare, thisShouldBeIncentiveIndShare, "This message shall not be seen")
+
+        }
+        console.log((await Vsystem.seeProposalInfo(0))[10])
+
+        let proposalInfBfr = await Vsystem.seeProposalInfo(0)
+        // Total incentive 
+        expect(proposalInfBfr[8]).to.equal(92);
+        // Active voters
+        expect(proposalInfBfr[5]).to.equal(4);
+        // The individual share of the incentive is 16 
+        // (92 total - 9 to burn - 9 to executer) / 4
+        expect(proposalInfBfr[9]).to.equal(18);
+        let proposalsExecuCut = await Vsystem.seeProposalInfo(0);
+
+        await network.provider.send("hardhat_mine", ["0x100"]);
+        await expect(
+            Vsystem.connect(erin).executeProposal(0)
+        ).to.emit(Vsystem, "ProposalExecuted");
+
+        // Check it's actually executed
+        let proposalInfo = await Vsystem.seeProposalInfo(0)
+        expect(proposalInfo[4]).to.be.true;
+        // Check if erin received the execusCut;
+        
+    });
 
     // it("rejects duplicate names", async function () {
     // });

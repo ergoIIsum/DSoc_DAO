@@ -260,6 +260,8 @@ contract VotingSystem {
         uint,
         uint,
         uint,
+        uint,
+        uint,
         uint
     ) 
     {
@@ -274,8 +276,9 @@ contract VotingSystem {
             _proposal.approvingVotes,
             _proposal.refusingVotes,
             _proposal.incentiveAmount,
-            _proposal.incentiveShare
-            );
+            _proposal.incentiveShare,
+            _proposal.amountToBurn,
+            _proposal.amountToExecutioner);
     }
     
     /////////////////////////////////////////
