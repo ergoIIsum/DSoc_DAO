@@ -42,7 +42,7 @@ describe("VotingSystem", function () {
             expect(await CLD.allowance(thisUser.address, Vsystem.address)).to.equal(100000);
         }
 
-        expect(await Vsystem.createProposal("Test Proposal 0", 20)).to.emit(Vsystem, 'ProposalCreated');
+        expect(await Vsystem.createProposal("Test Proposal 0", 16)).to.emit(Vsystem, 'ProposalCreated');
 
         let proposalData = await Vsystem.seeProposalInfo(0);
         expect(proposalData[0]).to.have.string('Test Proposal 0');
@@ -68,9 +68,6 @@ describe("VotingSystem", function () {
 */
     it("supports voting and incentivizing", async function () {
         const {Vsystem, alice, bob, carol, david, erin } = await loadFixture(deployContractsFixture);
-        
-        let contractOwner = await Vsystem.operator();
-        assert.equal(alice.address, contractOwner, "Alice and the contractOwner are not the same!");
 
         for (let thisUser of [alice, bob, carol, david, erin]) {
 
@@ -78,17 +75,32 @@ describe("VotingSystem", function () {
                 await Vsystem.connect(thisUser).castVote(100, 0, "approve")
             );
 
-            expect(
-                await Vsystem.connect(thisUser).incentivizeProposal(0, 20)
+            await expect(
+                Vsystem.connect(thisUser).castVote(100, 0, "approve"),
+              ).to.be.revertedWith('You already voted in this proposal');
+
+            await expect(
+                Vsystem.connect(thisUser).incentivizeProposal(0, 20)
             );
 
             let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
             expect(await userVotes[3]).to.be.true;
-            assert.equal(await userVotes[0], 100, 'This message will not be seen')
+            assert.equal(await userVotes[0], 100, "This message will not be seen")
         }
     
         let proposalIncentiveAmount = await Vsystem.seeProposalInfo(0)
-        console.log(proposalIncentiveAmount[9].toNumber())
+        // Total incentive 
         expect(await proposalIncentiveAmount[8]).to.equal(100);
+        // Active voters
+        expect(await proposalIncentiveAmount[5]).to.equal(5);
+        // The individual share of the incentive is 16 
+        // (100 total - 10 to burn - 10 to executer) / 5
+        expect(await proposalIncentiveAmount[9]).to.equal(16);
+        await expect(
+            Vsystem.connect(alice).castVote(100, 0, "approve")
+        );
+        expect(
+            Vsystem.connect(bob).castVote(100, 0, "approve")
+        );
     });
 });
