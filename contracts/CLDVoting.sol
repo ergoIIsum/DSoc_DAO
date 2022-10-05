@@ -228,7 +228,7 @@ contract VotingSystem {
         bytes32 _setHash = keccak256(abi.encodePacked(taxToSet));
         bytes32 _execusCut = keccak256(abi.encodePacked("execusCut"));
         bytes32 _burnCut = keccak256(abi.encodePacked("burnCut"));
-        bytes32 _memberHolding = keccak256(abi.encodePacked("burnCut"));
+        bytes32 _memberHolding = keccak256(abi.encodePacked("memberHolding"));
 
         if (_setHash == _execusCut) {
             execusCut = amount;
@@ -242,7 +242,8 @@ contract VotingSystem {
     }
 
     function setOperator(address newAddr) external onlyDAO {
-        require(operator != newAddr);
+        require(operator != newAddr, "New DAO address can't be the same as the old one");
+        require(operator != address(0), "New DAO can't be the zero address");
         operator = newAddr;
     }
 
