@@ -70,7 +70,7 @@ describe("VotingSystem", function () {
             ).to.emit(Vsystem, "ProposalIncentivized");
 
             let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
-            expect(userVotes[3]).to.be.true;
+            expect(userVotes[4]).to.be.true;
             assert.equal(userVotes[0], 100, "This message shall not be seen")
         }
     
@@ -157,19 +157,22 @@ describe("VotingSystem", function () {
             console.log("The incentive indShare is "+ proposalData[9])*/
 
             let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
-            expect(userVotes[3]).to.be.true;
+            expect(userVotes[4]).to.be.true;
             assert.equal(userVotes[0], 100, "This message shall not be seen")
         }
 
         let proposalInfBfr = await Vsystem.seeProposalInfo(0)
+        let voterDonated = (await Vsystem.viewVoterInfo(alice.address ,0))[3]
         // Total incentive 
-        expect(proposalInfBfr[8]).to.equal(942880);
+        expect(proposalInfBfr[8]).to.equal((await voterDonated.toNumber()*proposalInfBfr[5]));
         // Active voters
         expect(proposalInfBfr[5]).to.equal(4);
-        // The individual share of the incentive is 16 
-        // (92 total - 9 to burn - 9 to executer) / 4
-        expect(proposalInfBfr[9]).to.equal(188576);
-        let proposalsExecuCut = await Vsystem.seeProposalInfo(0);
+        // Burn amount
+        let burnAm = proposalInfBfr[10]
+        // Execus cut
+        let excCut = proposalInfBfr[11]
+        // The individual share of the incentives
+        expect(proposalInfBfr[9]).to.equal((proposalInfBfr[8]-burnAm.toNumber()-excCut.toNumber())/proposalInfBfr[5]);
 
         await network.provider.send("hardhat_mine", ["0x100"]);
         await expect(
@@ -180,16 +183,16 @@ describe("VotingSystem", function () {
         let proposalInfo = await Vsystem.seeProposalInfo(0)
         let execusCut = await Vsystem.execusCut()
         let burnCut = await Vsystem.burnCut()
-        let totalTax = execusCut.toNumber()+burnCut.toNumber();
+        let totalTax = ((execusCut.toNumber()+burnCut.toNumber())*100)/100;
         expect(proposalInfo[4]).to.be.true;
-        console.log(await proposalInfo[8])
-        // Total incentive  (235720*totalTax)/100
-        expect(proposalInfo[8]).to.equal(proposalInfBfr[8].toNumber()-(235720*totalTax)/100);
+        // Check ind share now
+        expect(proposalInfo[9]).to.equal((proposalInfBfr[8]-proposalInfBfr[10]-proposalInfBfr[11])/proposalInfBfr[5]);
+        // Total incentive now 
+        expect(proposalInfo[8]).to.equal(proposalInfBfr[8] - ((proposalInfBfr[8]*totalTax)/100));
         // Active voters
-        expect(proposalInfo[5]).to.equal(5);
-        // The individual share of the incentive is 16 
-        // (100 total - 10 to burn - 10 to executer) / 5
-        expect(proposalInfo[9]).to.equal(16);
+        expect(proposalInfo[5]).to.equal(4);
+        // Check erin received the tokens
+        expect(await CLD.balanceOf(erin.address)).to.equal(BigInt(excCut) + 1000000000000000000n);
     });
 
     // it("rejects duplicate names", async function () {

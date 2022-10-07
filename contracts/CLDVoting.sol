@@ -202,11 +202,10 @@ contract VotingSystem {
         require(proposal[proposalId].activeVoters > 0, "Can't execute proposals without voters!");
 
         uint burntAmount = _burnIncentiveShare(proposalId);
-        console.log(burntAmount);
+        //console.log(burntAmount);
         uint executShare = proposal[proposalId].amountToExecutioner;
         cld.transfer(msg.sender, executShare);
         proposal[proposalId].incentiveAmount -= proposal[proposalId].amountToExecutioner;
-        proposal[proposalId].amountToExecutioner = 0;
 
         proposal[proposalId].executed = true;
 
@@ -326,7 +325,7 @@ contract VotingSystem {
     function _burnIncentiveShare(uint _proposalId) internal returns(uint) {
         uint amount = proposal[_proposalId].amountToBurn;
         cld.Burn(amount);
-        proposal[_proposalId].amountToBurn -= amount;
+        proposal[_proposalId].incentiveAmount -= amount;
 
         return(amount);
     }
@@ -391,6 +390,7 @@ contract VotingSystem {
         external view returns (
         uint,
         uint,
+        uint,
         uint,  
         bool 
     ) 
@@ -399,6 +399,7 @@ contract VotingSystem {
             voterInfo[proposalId][voter].votesLocked,
             voterInfo[proposalId][voter].approvingVotes,
             voterInfo[proposalId][voter].refusingVotes,
+            voterInfo[proposalId][voter].amountDonated,
             voterInfo[proposalId][voter].voted
         );
     }
