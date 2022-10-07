@@ -146,43 +146,37 @@ describe("VotingSystem", function () {
             await expect(
                 Vsystem.connect(thisUser).incentivizeProposal(0, 235720)
             ).to.emit(Vsystem, "ProposalIncentivized");
-            await network.provider.send("hardhat_mine", ["0x1"]);
                 
             let proposalData = await Vsystem.seeProposalInfo(0)
-            /*console.log("This is one vote")
-            console.log("The voter's amount is "+ proposalData[5])
-            console.log("The incentive amount is "+ proposalData[8])
-            console.log("The burn amount is "+ proposalData[10])
-            console.log("The execusCut amount is "+ proposalData[11])
-            console.log("The incentive indShare is "+ proposalData[9])*/
 
-            let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
-            expect(userVotes[4]).to.be.true;
-            assert.equal(userVotes[0], 100, "This message shall not be seen")
+            let userData = await Vsystem.viewVoterInfo(thisUser.address, 0);
+            expect(userData[4]).to.be.true;
+            expect(await CLD.balanceOf(Vsystem.address)).to.equal((userData[0]*proposalData[5])+(userData[3]*proposalData[5]));
+            assert.equal(userData[0], 100, "This message shall not be seen");
         }
 
-        let proposalInfBfr = await Vsystem.seeProposalInfo(0)
+        let proposalInfBfr = await Vsystem.seeProposalInfo(0);
         let voterDonated = (await Vsystem.viewVoterInfo(alice.address ,0))[3]
         // Total incentive 
         expect(proposalInfBfr[8]).to.equal((await voterDonated.toNumber()*proposalInfBfr[5]));
         // Active voters
         expect(proposalInfBfr[5]).to.equal(4);
         // Burn amount
-        let burnAm = proposalInfBfr[10]
+        let burnAm = proposalInfBfr[10];
         // Execus cut
-        let excCut = proposalInfBfr[11]
+        let excCut = proposalInfBfr[11];
         // The individual share of the incentives
         expect(proposalInfBfr[9]).to.equal((proposalInfBfr[8]-burnAm.toNumber()-excCut.toNumber())/proposalInfBfr[5]);
 
-        await network.provider.send("hardhat_mine", ["0x100"]);
+        await network.provider.send("hardhat_mine", ["0x17"]);
         await expect(
             Vsystem.connect(erin).executeProposal(0)
         ).to.emit(Vsystem, "ProposalExecuted");
 
         // Check it's actually executed
-        let proposalInfo = await Vsystem.seeProposalInfo(0)
-        let execusCut = await Vsystem.execusCut()
-        let burnCut = await Vsystem.burnCut()
+        let proposalInfo = await Vsystem.seeProposalInfo(0);
+        let execusCut = await Vsystem.execusCut();
+        let burnCut = await Vsystem.burnCut();
         let totalTax = ((execusCut.toNumber()+burnCut.toNumber())*100)/100;
         expect(proposalInfo[4]).to.be.true;
         // Check ind share now
@@ -193,10 +187,16 @@ describe("VotingSystem", function () {
         expect(proposalInfo[5]).to.equal(4);
         // Check erin received the tokens
         expect(await CLD.balanceOf(erin.address)).to.equal(BigInt(excCut) + 1000000000000000000n);
+        // The balance on the contract should be:
+        //The initial incentive amount (before the execution) minus the taxes plus the amount of votes casted
+        expect(await CLD.balanceOf(Vsystem.address)).to.equal(proposalInfBfr[8]-proposalInfBfr[10]-proposalInfBfr[11]+400);
     });
 
-    // it("rejects duplicate names", async function () {
-    // });
+    it("rejects duplicate names", async function () {
+        const { Vsystem } = await loadFixture(deployContractsFixture);
+
+        await expect(Vsystem.createProposal("Test Proposal 0", 16)).to.be.revertedWith('This proposal already exists!');
+    });
 
     // it("pay each voter the respective amount", async function () {
     // });
