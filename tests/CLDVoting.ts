@@ -3,7 +3,6 @@ const { BigNumber } = require("ethers");
 const { artifacts, contract, ethers, network } = require("hardhat");
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 const { changeTokenBalances } = require("@nomicfoundation/hardhat-chai-matchers");
-const { BN, expectEvent, expectRevert, time } = require("@openzeppelin/test-helpers");
 
 describe("VotingSystem", function () {
 
@@ -148,7 +147,6 @@ describe("VotingSystem", function () {
             ).to.emit(Vsystem, "ProposalIncentivized");
                 
             let proposalData = await Vsystem.seeProposalInfo(0)
-
             let userData = await Vsystem.viewVoterInfo(thisUser.address, 0);
             expect(userData[4]).to.be.true;
             expect(await CLD.balanceOf(Vsystem.address)).to.equal((userData[0]*proposalData[5])+(userData[3]*proposalData[5]));
@@ -198,12 +196,43 @@ describe("VotingSystem", function () {
         await expect(Vsystem.createProposal("Test Proposal 0", 16)).to.be.revertedWith('This proposal already exists!');
     });
 
-    // it("pay each voter the respective amount", async function () {
-    // });
+     it("pay each voter the respective amount", async function () {
+        const {Vsystem, alice, bob, carol, david, erin, CLD } = await loadFixture(deployContractsFixture);
+
+        for (let thisUser of [alice, bob, carol, david, erin]) {
+            expect(
+                await Vsystem.connect(thisUser).castVote(100, 0, "approve")
+            );
+
+            await expect(
+                Vsystem.connect(thisUser).incentivizeProposal(0, 235720)
+            ).to.emit(Vsystem, "ProposalIncentivized");
+        }
+
+        await network.provider.send("hardhat_mine", ["0x17"]);
+        await expect(
+            Vsystem.connect(alice).executeProposal(0)
+        ).to.emit(Vsystem, "ProposalExecuted");
+        let proposalInfo = await Vsystem.seeProposalInfo(0);
+
+        for (let thisUser of [bob, carol, david, erin]) {
+            let userBalance = await CLD.balanceOf(thisUser.address);
+            let vSystemBalance = await CLD.balanceOf(Vsystem.address);
+
+            // Pay back the respective incentive amount + casted votes
+            await expect(
+                Vsystem.connect(thisUser).withdrawMyTokens(0)
+            ).to.emit(Vsystem, "IncentiveWithdrawed");
+
+            // Verify the tokens were given
+            expect(await CLD.balanceOf(thisUser.address)).to.equal(BigInt(userBalance)+ BigInt(proposalInfo[9]) + BigInt(100));
+        }
+        expect(await CLD.balanceOf(Vsystem.address))
+        .to.equal(((proposalInfo[8]).toNumber()+100)-((proposalInfo[10]).toNumber()-(proposalInfo[11]).toNumber())-(proposalInfo[9].toNumber())*4);
+
+     });
 
     // it("helpful comment, add more tests here", async function () {
     // });
-
-    // console.log(await Vsystem.checkBlock())
 
 });
