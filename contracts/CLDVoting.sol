@@ -4,6 +4,7 @@ pragma solidity ^0.8.4;
 // These are some useful tools for ease of use
 import "./libraries.sol";
 import "./ClassicDAO.sol";
+import "hardhat/console.sol";
 // TO DO Treasury module
 // import "./CLDTreasury.sol";
 // TO DO Proposer module
@@ -201,6 +202,7 @@ contract VotingSystem {
         require(proposal[proposalId].activeVoters > 0, "Can't execute proposals without voters!");
 
         uint burntAmount = _burnIncentiveShare(proposalId);
+        console.log(burntAmount);
         uint executShare = proposal[proposalId].amountToExecutioner;
         cld.transfer(msg.sender, executShare);
         proposal[proposalId].incentiveAmount -= proposal[proposalId].amountToExecutioner;
@@ -374,7 +376,7 @@ contract VotingSystem {
         uint256 length = proposal.length;
         for (uint256 _proposalId = 0; _proposalId < length; _proposalId++) {
             bytes32 _nameHash = keccak256(abi.encodePacked(proposal[_proposalId].name));
-            require(_nameHash != _proposalName, "add: Collection already exists!");
+            require(_nameHash != _proposalName, "This proposal already exists!");
         }
     }
 

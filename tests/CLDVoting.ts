@@ -11,11 +11,11 @@ describe("VotingSystem", function () {
         const [alice, bob, carol, david, erin] = await ethers.getSigners();
 
         const cldFactory = await ethers.getContractFactory("ClassicDAO");
-        const CLD = await cldFactory.deploy(10000000000000, "TestCLD", "TCLD");
+        const CLD = await cldFactory.deploy(20000000000000000000n, "TestCLD", "TCLD");
         await CLD.deployed();
         expect(
             await CLD.balanceOf(alice.address)
-        ).to.equal(10000000000000);
+        ).to.equal(20000000000000000000n);
 
         const vSFactory = await ethers.getContractFactory("VotingSystem");
         const Vsystem = await vSFactory.deploy(CLD.address);
@@ -24,22 +24,22 @@ describe("VotingSystem", function () {
         let contractOwner = await Vsystem.operator();
         assert.equal(alice.address, contractOwner, "Alice and the contractOwner are not the same!");
         await expect(
-            CLD.connect(alice).approve(Vsystem.address, 100000)
+            CLD.connect(alice).approve(Vsystem.address, 10000000000000000000n)
         );
 
         for (let thisUser of [bob, carol, david, erin]) {
             // Send some CLD to test users, make them approve it to the VotingSystem contract
             await expect(
-                CLD.connect(alice).transfer(thisUser.address, 100000)
-              ).to.changeTokenBalances(CLD, [alice, thisUser], [-100000, 100000]);
+                CLD.connect(alice).transfer(thisUser.address, 1000000000000000000n)
+              ).to.changeTokenBalances(CLD, [alice, thisUser], [-1000000000000000000n, 1000000000000000000n]);
             
             await expect(
-                CLD.connect(thisUser).approve(Vsystem.address, 100000)
+                CLD.connect(thisUser).approve(Vsystem.address, 1000000000000000000n)
             );
 
             // Test everything went fine
-            expect(await CLD.balanceOf(thisUser.address)).to.equal(100000);
-            expect(await CLD.allowance(thisUser.address, Vsystem.address)).to.equal(100000);
+            expect(await CLD.balanceOf(thisUser.address)).to.equal(1000000000000000000n);
+            expect(await CLD.allowance(thisUser.address, Vsystem.address)).to.equal(1000000000000000000n);
         }
 
         expect(await Vsystem.createProposal("Test Proposal 0", 16)).to.emit(Vsystem, 'ProposalCreated');
@@ -87,7 +87,7 @@ describe("VotingSystem", function () {
     it("supports rejecting votes and incentives after the voting period ends", async function () {
         const {Vsystem, alice, bob } = await loadFixture(deployContractsFixture);
         // Let's push some blocks there to end the voting period
-        await network.provider.send("hardhat_mine", ["0x100"]);
+        await network.provider.send("hardhat_mine", ["0x20"]);
 
         await expect(
             Vsystem.connect(alice).castVote(100, 0, "approve"), 
@@ -127,16 +127,16 @@ describe("VotingSystem", function () {
         }
 
         let execusCutAmount = await Vsystem.execusCut();
-        assert.equal(execusCutAmount, 11, "This message shall not be seen")
+        assert.equal(execusCutAmount, 11, "This message shall not be seen 1")
         let burnCutAmount = await Vsystem.burnCut();
-        assert.equal(burnCutAmount, 11, "This message shall not be seen")
+        assert.equal(burnCutAmount, 11, "This message shall not be seen 2")
         let memberHoldingAmount = await Vsystem.memberHolding();
-        assert.equal(memberHoldingAmount, 11, "This message shall not be seen")
+        assert.equal(memberHoldingAmount, 11, "This message shall not be seen 3")
     });
 
     it("executes the proposals correctly, burning and paying the executioner's cut", async function () {
         const {Vsystem, alice, bob, carol, david, erin, CLD } = await loadFixture(deployContractsFixture);
-        expect(await CLD.balanceOf(erin.address)).to.equal(100000);
+        expect(await CLD.balanceOf(erin.address)).to.equal(1000000000000000000n);
 
         for (let thisUser of [alice, bob, carol, david]) {
             expect(
@@ -144,29 +144,31 @@ describe("VotingSystem", function () {
             );
 
             await expect(
-                Vsystem.connect(thisUser).incentivizeProposal(0, 23)
+                Vsystem.connect(thisUser).incentivizeProposal(0, 235720)
             ).to.emit(Vsystem, "ProposalIncentivized");
+            await network.provider.send("hardhat_mine", ["0x1"]);
+                
+            let proposalData = await Vsystem.seeProposalInfo(0)
+            /*console.log("This is one vote")
+            console.log("The voter's amount is "+ proposalData[5])
+            console.log("The incentive amount is "+ proposalData[8])
+            console.log("The burn amount is "+ proposalData[10])
+            console.log("The execusCut amount is "+ proposalData[11])
+            console.log("The incentive indShare is "+ proposalData[9])*/
 
-            let activeVoters = (await Vsystem.seeProposalInfo(0))[5]
-            let incentiveAmount = (await Vsystem.seeProposalInfo(0))[8]
-            let thisShouldBeIncentiveIndShare = incentiveAmount / activeVoters
-            let actualIncentiveIndShare = incentiveAmount
-            console.log("The incentive amount is "+ incentiveAmount)
-            console.log("The individual incentive share amount is "+ actualIncentiveIndShare)
-
-            assert.equal(actualIncentiveIndShare, thisShouldBeIncentiveIndShare, "This message shall not be seen")
-
+            let userVotes = await Vsystem.viewVoterInfo(thisUser.address, 0);
+            expect(userVotes[3]).to.be.true;
+            assert.equal(userVotes[0], 100, "This message shall not be seen")
         }
-        console.log((await Vsystem.seeProposalInfo(0))[10])
 
         let proposalInfBfr = await Vsystem.seeProposalInfo(0)
         // Total incentive 
-        expect(proposalInfBfr[8]).to.equal(92);
+        expect(proposalInfBfr[8]).to.equal(942880);
         // Active voters
         expect(proposalInfBfr[5]).to.equal(4);
         // The individual share of the incentive is 16 
         // (92 total - 9 to burn - 9 to executer) / 4
-        expect(proposalInfBfr[9]).to.equal(18);
+        expect(proposalInfBfr[9]).to.equal(188576);
         let proposalsExecuCut = await Vsystem.seeProposalInfo(0);
 
         await network.provider.send("hardhat_mine", ["0x100"]);
@@ -176,9 +178,18 @@ describe("VotingSystem", function () {
 
         // Check it's actually executed
         let proposalInfo = await Vsystem.seeProposalInfo(0)
+        let execusCut = await Vsystem.execusCut()
+        let burnCut = await Vsystem.burnCut()
+        let totalTax = execusCut.toNumber()+burnCut.toNumber();
         expect(proposalInfo[4]).to.be.true;
-        // Check if erin received the execusCut;
-        
+        console.log(await proposalInfo[8])
+        // Total incentive  (235720*totalTax)/100
+        expect(proposalInfo[8]).to.equal(proposalInfBfr[8].toNumber()-(235720*totalTax)/100);
+        // Active voters
+        expect(proposalInfo[5]).to.equal(5);
+        // The individual share of the incentive is 16 
+        // (100 total - 10 to burn - 10 to executer) / 5
+        expect(proposalInfo[9]).to.equal(16);
     });
 
     // it("rejects duplicate names", async function () {
