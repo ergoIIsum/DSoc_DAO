@@ -7,10 +7,10 @@
   "author": "Jiego",
   "license": "MIT",
   "scripts": {
-    "format:check": "npx prettier --check './*.{js,ts,sol}'",
-    "format:write": "prettier --write './**/*.{js,ts,sol}'",
+    "format:check": "prettier --check ./*.{js,ts,sol}",
+    "format:write": "prettier --write ./*.{js,ts,sol}",
     "prepare": "husky install",
-    "test": "npx hardhat test"
+    "test": "hardhat test ./tests/CLDVoting.ts"
   },
   "devDependencies": {
     "@commitlint/config-conventional": "^12.1.4",
