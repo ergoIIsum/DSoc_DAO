@@ -20,7 +20,7 @@ describe("VotingSystem", function () {
         const Vsystem = await vSFactory.deploy(CLD.address);
         await Vsystem.deployed();
 
-        let contractOwner = await Vsystem.operator();
+        let contractOwner = await Vsystem.DAO();
         assert.equal(alice.address, contractOwner, "Alice and the contractOwner are not the same!");
         await expect(
             CLD.connect(alice).approve(Vsystem.address, 10000000000000000000n)
@@ -57,11 +57,11 @@ describe("VotingSystem", function () {
 
         for (let thisUser of [alice, bob, carol, david, erin]) {
             expect(
-                await Vsystem.connect(thisUser).castVote(100, 0, "approve")
+                await Vsystem.connect(thisUser).castVote(100, 0, 0)
             ).to.emit(Vsystem, "CastedVote");
             // We won't see this
             await expect(
-                Vsystem.connect(thisUser).castVote(100, 0, "approve"), 
+                Vsystem.connect(thisUser).castVote(100, 0, 0), 
             ).to.be.revertedWith('You already voted in this proposal');
 
             await expect(
@@ -75,12 +75,12 @@ describe("VotingSystem", function () {
     
         let proposalInfo = await Vsystem.seeProposalInfo(0)
         // Total incentive 
-        expect(proposalInfo[8]).to.equal(100);
+        expect(proposalInfo[7]).to.equal(100);
         // Active voters
-        expect(proposalInfo[5]).to.equal(5);
+        expect(proposalInfo[4]).to.equal(5);
         // The individual share of the incentive is 16 
         // (100 total - 10 to burn - 10 to executer) / 5
-        expect(proposalInfo[9]).to.equal(16);
+        expect(proposalInfo[8]).to.equal(16);
     });
 
     it("supports rejecting votes and incentives after the voting period ends", async function () {
@@ -89,7 +89,7 @@ describe("VotingSystem", function () {
         await network.provider.send("hardhat_mine", ["0x20"]);
 
         await expect(
-            Vsystem.connect(alice).castVote(100, 0, "approve"), 
+            Vsystem.connect(alice).castVote(100, 0, 0), 
         ).to.be.revertedWith('The voting period has ended');
         await expect(
             Vsystem.connect(bob).incentivizeProposal(0, 20), 
@@ -139,7 +139,7 @@ describe("VotingSystem", function () {
 
         for (let thisUser of [alice, bob, carol, david]) {
             expect(
-                await Vsystem.connect(thisUser).castVote(100, 0, "approve")
+                await Vsystem.connect(thisUser).castVote(100, 0, 0)
             );
 
             await expect(
@@ -149,22 +149,22 @@ describe("VotingSystem", function () {
             let proposalData = await Vsystem.seeProposalInfo(0)
             let userData = await Vsystem.viewVoterInfo(thisUser.address, 0);
             expect(userData[4]).to.be.true;
-            expect(await CLD.balanceOf(Vsystem.address)).to.equal((userData[0]*proposalData[5])+(userData[3]*proposalData[5]));
+            expect(await CLD.balanceOf(Vsystem.address)).to.equal((userData[0]*proposalData[4])+(userData[3]*proposalData[4]));
             assert.equal(userData[0], 100, "This message shall not be seen");
         }
 
         let proposalInfBfr = await Vsystem.seeProposalInfo(0);
         let voterDonated = (await Vsystem.viewVoterInfo(alice.address ,0))[3]
         // Total incentive 
-        expect(proposalInfBfr[8]).to.equal((await voterDonated.toNumber()*proposalInfBfr[5]));
+        expect(proposalInfBfr[7]).to.equal((await voterDonated.toNumber()*proposalInfBfr[4]));
         // Active voters
-        expect(proposalInfBfr[5]).to.equal(4);
+        expect(proposalInfBfr[4]).to.equal(4);
         // Burn amount
-        let burnAm = proposalInfBfr[10];
+        let burnAm = proposalInfBfr[9];
         // Execus cut
-        let excCut = proposalInfBfr[11];
+        let excCut = proposalInfBfr[10];
         // The individual share of the incentives
-        expect(proposalInfBfr[9]).to.equal((proposalInfBfr[8]-burnAm.toNumber()-excCut.toNumber())/proposalInfBfr[5]);
+        expect(proposalInfBfr[8]).to.equal((proposalInfBfr[7]-burnAm.toNumber()-excCut.toNumber())/proposalInfBfr[4]);
 
         await network.provider.send("hardhat_mine", ["0x17"]);
         await expect(
@@ -176,18 +176,18 @@ describe("VotingSystem", function () {
         let execusCut = await Vsystem.execusCut();
         let burnCut = await Vsystem.burnCut();
         let totalTax = ((execusCut.toNumber()+burnCut.toNumber())*100)/100;
-        expect(proposalInfo[4]).to.be.true;
+        expect(proposalInfo[3]).to.be.true;
         // Check ind share now
-        expect(proposalInfo[9]).to.equal((proposalInfBfr[8]-proposalInfBfr[10]-proposalInfBfr[11])/proposalInfBfr[5]);
+        expect(proposalInfo[8]).to.equal((proposalInfBfr[7]-proposalInfBfr[9]-proposalInfBfr[10])/proposalInfBfr[4]);
         // Total incentive now 
-        expect(proposalInfo[8]).to.equal(proposalInfBfr[8] - ((proposalInfBfr[8]*totalTax)/100));
+        expect(proposalInfo[7]).to.equal(proposalInfBfr[7] - ((proposalInfBfr[7]*totalTax)/100));
         // Active voters
-        expect(proposalInfo[5]).to.equal(4);
+        expect(proposalInfo[4]).to.equal(4);
         // Check erin received the tokens
         expect(await CLD.balanceOf(erin.address)).to.equal(BigInt(excCut) + 1000000000000000000n);
         // The balance on the contract should be:
         //The initial incentive amount (before the execution) minus the taxes plus the amount of votes casted
-        expect(await CLD.balanceOf(Vsystem.address)).to.equal(proposalInfBfr[8]-proposalInfBfr[10]-proposalInfBfr[11]+400);
+        expect(await CLD.balanceOf(Vsystem.address)).to.equal(proposalInfBfr[7]-proposalInfBfr[9]-proposalInfBfr[10]+400);
     });
 
     it("rejects duplicate names", async function () {
@@ -196,12 +196,12 @@ describe("VotingSystem", function () {
         await expect(Vsystem.createProposal("Test Proposal 0", 16)).to.be.revertedWith('This proposal already exists!');
     });
 
-     it("pay each voter the respective amount", async function () {
+     it("pay each voter the respective amount of the total incentives", async function () {
         const {Vsystem, alice, bob, carol, david, erin, CLD } = await loadFixture(deployContractsFixture);
 
         for (let thisUser of [alice, bob, carol, david, erin]) {
             expect(
-                await Vsystem.connect(thisUser).castVote(100, 0, "approve")
+                await Vsystem.connect(thisUser).castVote(100, 0, 0)
             );
 
             await expect(
@@ -225,10 +225,10 @@ describe("VotingSystem", function () {
             ).to.emit(Vsystem, "IncentiveWithdrawed");
 
             // Verify the tokens were given
-            expect(await CLD.balanceOf(thisUser.address)).to.equal(BigInt(userBalance)+ BigInt(proposalInfo[9]) + BigInt(100));
+            expect(await CLD.balanceOf(thisUser.address)).to.equal(BigInt(userBalance)+ BigInt(proposalInfo[8]) + BigInt(100));
         }
         expect(await CLD.balanceOf(Vsystem.address))
-        .to.equal(((proposalInfo[8]).toNumber()+100)-((proposalInfo[10]).toNumber()-(proposalInfo[11]).toNumber())-(proposalInfo[9].toNumber())*4);
+        .to.equal(((proposalInfo[7]).toNumber()+100)-((proposalInfo[9]).toNumber()-(proposalInfo[10]).toNumber())-(proposalInfo[8].toNumber())*4);
 
      });
 

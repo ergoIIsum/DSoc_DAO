@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity ^0.8.4;
+pragma solidity ^0.8.10;
 
 // These are some useful tools for ease of use
 import "./libraries.sol";
@@ -22,22 +22,19 @@ contract VotingSystem {
     using Arrays for uint256[];
     ClassicDAO internal cld;
 
-    // Hashes for voting options
-    bytes32 internal constant approvalHash = keccak256("approve");
-    bytes32 internal constant refusalHash = keccak256("refuse");
-
     // Proposal executioner's bonus, proposal incentive burn percentage 
     uint public execusCut;
     uint public burnCut;
     uint public memberHolding;
-    address public operator;
+    address public DAO;
 
-    /* Events
-     TO DO:
-        TESTING
-    */
+    enum Vote {
+        Yes,
+        No
+    }
+
     event ProposalCreated(address proposer, string proposalName, uint voteStart, uint voteEnd);
-    event ProposalExecuted(address executor, uint proposalId, uint amountBurned, uint executShare);
+    event ProposalExecuted(address executor, uint proposalId, uint amountBurned, uint executShare, string status);
     event CastedVote(uint proposalId, string option, uint votesCasted);
     event ProposalIncentivized(address donator, uint proposalId, uint amountDonated);
     event IncentiveWithdrawed(uint remainingIncentive);
@@ -45,7 +42,6 @@ contract VotingSystem {
     struct ProposalCore {
         string name;
         uint voteStart;
-        uint voteTime;
         uint voteEnd;
         bool executed;
         uint activeVoters;
@@ -55,6 +51,7 @@ contract VotingSystem {
         uint incentiveShare;
         uint amountToBurn;
         uint amountToExecutioner;
+        string outcome;
     }
 
     struct VoterInfo {
@@ -87,7 +84,7 @@ contract VotingSystem {
     constructor(ClassicDAO cldAddr) 
     {
         cld = cldAddr;
-        operator = msg.sender;
+        DAO = msg.sender;
         burnCut = 10;
         execusCut = 10;
     }
@@ -106,7 +103,6 @@ contract VotingSystem {
             ProposalCore({
                 name: name,
                 voteStart: beginsNow,
-                voteTime: time,
                 voteEnd: endsIn,
                 executed: false,
                 activeVoters: 0,
@@ -115,7 +111,8 @@ contract VotingSystem {
                 incentiveAmount: 0,
                 incentiveShare: 0,
                 amountToBurn: 0,
-                amountToExecutioner: 0
+                amountToExecutioner: 0,
+                outcome: "Not voted"
             })
         );
         emit ProposalCreated(msg.sender, name, beginsNow, endsIn);
@@ -147,12 +144,10 @@ contract VotingSystem {
     function castVote(
         uint amount,
         uint proposalId, 
-        string memory option
+        uint8 option
         ) 
         external 
     { 
-        bytes32 _optionHash = keccak256(abi.encodePacked(option));
-
         require(
             cld.balanceOf(msg.sender) >= amount, 
             "You do not have enough CLD to vote this amount"
@@ -162,8 +157,8 @@ contract VotingSystem {
             "You have not given the voting contract enough allowance"
         );
         require(
-            _optionHash == approvalHash || _optionHash == refusalHash, 
-            "You must either 'approve' or 'refuse'"
+            option == 0 || option == 1, 
+            "You must either vote 'Yes' or 'No'"
         );
         require(keccak256(
             abi.encodePacked(proposal[proposalId].name,
@@ -173,14 +168,14 @@ contract VotingSystem {
 
         cld.transferFrom(msg.sender, address(this), amount);
 
-        if(_optionHash == approvalHash) {
+        if(option == 0) {
             proposal[proposalId].approvingVotes += amount;
             voterInfo[proposalId][msg.sender].approvingVotes += amount;
-            emit CastedVote(proposalId, "approval", amount);
+            emit CastedVote(proposalId, "Yes", amount);
         } else {
             proposal[proposalId].refusingVotes += amount;
             voterInfo[proposalId][msg.sender].refusingVotes += amount;
-            emit CastedVote(proposalId, "refusal", amount);
+            emit CastedVote(proposalId, "No", amount);
         }
         voterInfo[proposalId][msg.sender].votesLocked += amount;
         voterInfo[proposalId][msg.sender].voted = true;
@@ -191,7 +186,7 @@ contract VotingSystem {
 
     // Proposal execution code
     // Placeholder TO DO
-    function executeProposal( uint proposalId) external { 
+    function executeProposal(uint proposalId) external { 
         voterInfo[proposalId][msg.sender].isExecutioner = true;
 
         require(keccak256(
@@ -202,14 +197,25 @@ contract VotingSystem {
         require(proposal[proposalId].activeVoters > 0, "Can't execute proposals without voters!");
 
         uint burntAmount = _burnIncentiveShare(proposalId);
-        //console.log(burntAmount);
         uint executShare = proposal[proposalId].amountToExecutioner;
         cld.transfer(msg.sender, executShare);
         proposal[proposalId].incentiveAmount -= proposal[proposalId].amountToExecutioner;
 
+        string memory _result;
+
+        if (proposal[proposalId].approvingVotes > proposal[proposalId].refusingVotes) {
+            _result = "approved";
+            proposal[proposalId].outcome = "Approved";
+            // execute payload
+        } else {
+            _result = "rejected";
+            proposal[proposalId].outcome = "Rejected";
+            // 
+        }
+
         proposal[proposalId].executed = true;
 
-        emit ProposalExecuted(msg.sender, proposalId, burntAmount, executShare);
+        emit ProposalExecuted(msg.sender, proposalId, burntAmount, executShare, _result);
     }
 
     function withdrawMyTokens(uint proposalId) external {
@@ -242,10 +248,10 @@ contract VotingSystem {
         }
     }
 
-    function setOperator(address newAddr) external onlyDAO {
-        require(operator != newAddr, "New DAO address can't be the same as the old one");
-        require(operator != address(0), "New DAO can't be the zero address");
-        operator = newAddr;
+    function setDAOAddress(address newAddr) external onlyDAO {
+        require(DAO != newAddr, "New DAO address can't be the same as the old one");
+        require(DAO != address(0), "New DAO can't be the zero address");
+        DAO = newAddr;
     }
 
     function seeProposalInfo(uint proposalId) 
@@ -255,7 +261,6 @@ contract VotingSystem {
         string memory,
         uint,
         uint,
-        uint,
         bool,
         uint,
         uint,
@@ -263,14 +268,14 @@ contract VotingSystem {
         uint,
         uint,
         uint,
-        uint
+        uint,
+        string memory
     ) 
     {
         ProposalCore memory _proposal = proposal[proposalId];      
         return (
             _proposal.name,
             _proposal.voteStart,
-            _proposal.voteTime,
             _proposal.voteEnd,
             _proposal.executed,
             _proposal.activeVoters,
@@ -279,7 +284,9 @@ contract VotingSystem {
             _proposal.incentiveAmount,
             _proposal.incentiveShare,
             _proposal.amountToBurn,
-            _proposal.amountToExecutioner);
+            _proposal.amountToExecutioner,
+            _proposal.outcome
+            );
     }
     
     /////////////////////////////////////////
@@ -368,7 +375,7 @@ contract VotingSystem {
 
     function _checkIfDAO() internal view {
         address _user = msg.sender;
-        require(_user == operator, "This function can only be called by the DAO");
+        require(_user == DAO, "This function can only be called by the DAO");
     }
 
     function _checkForDuplicate(bytes32 _proposalName) internal view {
@@ -419,7 +426,7 @@ contract VotingSystem {
  * @dev Implements a execution layer for 
  * ClassicDAO 
  * 
- * As such, this should be the actual operator for the whole
+ * As such, this should be the actual DAO for the whole
  * ClassicDAO system
  */
 
